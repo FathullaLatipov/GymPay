@@ -27,7 +27,7 @@ pip install django gunicorn
 
 # Create a new Django project
 cd $PROJECT_ROOT
-pip install -r requirements.txt
+pip install -r req.txt
 pip install psycopg2-binary
 
 # Create a systemd service for Gunicorn
