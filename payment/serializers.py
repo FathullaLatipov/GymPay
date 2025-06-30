@@ -13,5 +13,5 @@ class TestMyMerchantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MerchantTransactionsModel
-        fields = ['_id', 'transaction_id', 'user_id', 'amount', 'time', 'perform_time','email', 'phone',
+        fields = ['_id', 'transaction_id', 'user_id', 'amount', 'time', 'perform_time','email', 'phone', 'payment_id',
                   'cancel_time', 'state', 'reason', 'created_at_ms', 'created_at', 'updated_at']

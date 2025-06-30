@@ -38,51 +38,85 @@ from payment.models import MerchantTransactionsModel
 from payme.views import PaymeWebHookAPIView
 from config import settings
 
+#
+# class PaymeCallbackView(PaymeWebHookAPIView):
+#
+#     def handle_create_transaction(self, params, *args, **kwargs):
+#         try:
+#             account = params.get("account", {})
+#             user_id = account.get("user_id")
+#             email = account.get("email")
+#             phone = account.get("phone")
+#             transaction_id = params.get("id")
+#             amount = params.get("amount")
+#             time = params.get("time")
+#             created_at_ms = time
+#
+#             # Проверка на дубликат (можно по transaction_id)
+#             if MerchantTransactionsModel.objects.filter(transaction_id=transaction_id).exists():
+#                 print("[CREATE] Transaction already exists")
+#                 return
+#
+#             MerchantTransactionsModel.objects.create(
+#                 user_id=user_id,
+#                 transaction_id=transaction_id,
+#                 amount=amount,
+#                 time=time,
+#                 created_at_ms=created_at_ms,
+#                 email=email,
+#                 phone=phone
+#             )
+#             print("[CREATE] Transaction saved")
+#         except Exception as e:
+#             print("[CREATE TRANSACTION ERROR]", str(e))
+#
+#     def handle_successfully_payment(self, params, result, *args, **kwargs):
+#         print("[PAYME CALLBACK] Transaction performed. Sending to GetCourse")
+#
+#         try:
+#             account = params.get("account", {})
+#             user_id = account.get("user_id")
+#             amount = params.get("amount")
+#
+#             response = requests.post("https://fitpackcourse.getcourse.ru/pl/api/payments", data={
+#                 "user": {
+#                     "id": user_id
+#                 },
+#                 "amount": amount,
+#                 "system": "Payme",
+#                 "comment": "Оплата через Payme",
+#                 "key": settings.GETCOURSE_API_KEY
+#             })
+#
+#             print("[GETCOURSE RESPONSE]", response.status_code, response.text)
+#         except Exception as e:
+#             print("[ERROR SENDING TO GETCOURSE]", str(e))
+#
+#     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
+#         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
 
 class PaymeCallbackView(PaymeWebHookAPIView):
 
     def handle_create_transaction(self, params, *args, **kwargs):
         try:
-            account = params.get("account", {})
-            user_id = account.get("user_id")
-            email = account.get("email")
-            phone = account.get("phone")
-            transaction_id = params.get("id")
-            amount = params.get("amount")
-            time = params.get("time")
-            created_at_ms = time
-
-            # Проверка на дубликат (можно по transaction_id)
-            if MerchantTransactionsModel.objects.filter(transaction_id=transaction_id).exists():
-                print("[CREATE] Transaction already exists")
+            payment_id = params['account'].get('payment_id')
+            if not payment_id:
+                print("[CREATE] Missing payment_id")
                 return
 
-            MerchantTransactionsModel.objects.create(
-                user_id=user_id,
-                transaction_id=transaction_id,
-                amount=amount,
-                time=time,
-                created_at_ms=created_at_ms,
-                email=email,
-                phone=phone
-            )
-            print("[CREATE] Transaction saved")
-        except Exception as e:
-            print("[CREATE TRANSACTION ERROR]", str(e))
+            transaction = MerchantTransactionsModel.objects.get(transaction_id=payment_id)
+            print(f"[CREATE] Found transaction {transaction.transaction_id}")
+        except MerchantTransactionsModel.DoesNotExist:
+            print("[CREATE ERROR] Transaction not found")
 
     def handle_successfully_payment(self, params, result, *args, **kwargs):
-        print("[PAYME CALLBACK] Transaction performed. Sending to GetCourse")
-
         try:
-            account = params.get("account", {})
-            user_id = account.get("user_id")
-            amount = params.get("amount")
+            payment_id = params['account'].get('payment_id')
+            transaction = MerchantTransactionsModel.objects.get(transaction_id=payment_id)
 
             response = requests.post("https://fitpackcourse.getcourse.ru/pl/api/payments", data={
-                "user": {
-                    "id": user_id
-                },
-                "amount": amount,
+                "user": {"id": transaction.user_id},
+                "amount": transaction.amount,
                 "system": "Payme",
                 "comment": "Оплата через Payme",
                 "key": settings.GETCOURSE_API_KEY
@@ -90,7 +124,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             print("[GETCOURSE RESPONSE]", response.status_code, response.text)
         except Exception as e:
-            print("[ERROR SENDING TO GETCOURSE]", str(e))
+            print("[ERROR SEND TO GETCOURSE]", str(e))
 
     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
+
