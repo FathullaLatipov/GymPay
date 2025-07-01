@@ -225,6 +225,15 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             print("[PERFORM ✅] Sent to GetCourse")
             print("[GETCOURSE RESPONSE]", response.status_code, response.text)
 
+            return {
+                "result": {
+                    "perform_time": transaction.time,
+                    "transaction": transaction.transaction_id,
+                    "state": 1  # выполнено
+                    "payment_id": transaction.phone
+                }
+            }
+
         except MerchantTransactionsModel.DoesNotExist:
             print("[PERFORM ❌] Transaction not found")
 
