@@ -182,6 +182,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             return {
                 "result": {
                     "allow": True,
+                    "test": True,
                     "additional": {
                         "user_id": str(transaction.user_id),
                         "email": transaction.email or "",
