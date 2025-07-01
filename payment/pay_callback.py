@@ -95,25 +95,82 @@ from config import settings
 #     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
 #         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
 
+# class PaymeCallbackView(PaymeWebHookAPIView):
+#
+#     def handle_create_transaction(self, params, *args, **kwargs):
+#         try:
+#             payment_id = params['account'].get('payment_id')
+#             if not payment_id:
+#                 print("[CREATE] Missing payment_id")
+#                 return
+#
+#             transaction = MerchantTransactionsModel.objects.get(transaction_id=payment_id)
+#             print(f"[CREATE] Found transaction {transaction.transaction_id}")
+#         except MerchantTransactionsModel.DoesNotExist:
+#             print("[CREATE ERROR] Transaction not found")
+#
+#     def handle_successfully_payment(self, params, result, *args, **kwargs):
+#         try:
+#             payment_id = params['account'].get('payment_id')
+#             transaction = MerchantTransactionsModel.objects.get(transaction_id=payment_id)
+#
+#             response = requests.post("https://fitpackcourse.getcourse.ru/pl/api/payments", data={
+#                 "user": {"id": transaction.user_id},
+#                 "amount": transaction.amount,
+#                 "system": "Payme",
+#                 "comment": "Оплата через Payme",
+#                 "key": settings.GETCOURSE_API_KEY
+#             })
+#
+#             print("[GETCOURSE RESPONSE]", response.status_code, response.text)
+#         except Exception as e:
+#             print("[ERROR SEND TO GETCOURSE]", str(e))
+#
+#     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
+#         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
+
 class PaymeCallbackView(PaymeWebHookAPIView):
 
     def handle_create_transaction(self, params, *args, **kwargs):
         try:
             payment_id = params['account'].get('payment_id')
             if not payment_id:
-                print("[CREATE] Missing payment_id")
+                print("[CREATE] ❌ Missing payment_id")
                 return
 
-            transaction = MerchantTransactionsModel.objects.get(transaction_id=payment_id)
-            print(f"[CREATE] Found transaction {transaction.transaction_id}")
+            # Получаем сумму и другие данные
+            transaction_id = params.get('id')
+            time = params.get('time')
+            amount = params.get('amount')
+
+            # Получаем транзакцию по payment_id
+            transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
+
+            # Обновляем данные
+            transaction.transaction_id = transaction_id
+            transaction.time = time
+            transaction.amount = amount
+            transaction.save()
+
+            print(f"[CREATE ✅] Transaction updated: {transaction_id}")
+
         except MerchantTransactionsModel.DoesNotExist:
-            print("[CREATE ERROR] Transaction not found")
+            print("[CREATE ❌] Transaction with payment_id not found")
+
+        except Exception as e:
+            print("[CREATE ❌ ERROR]", str(e))
 
     def handle_successfully_payment(self, params, result, *args, **kwargs):
         try:
             payment_id = params['account'].get('payment_id')
-            transaction = MerchantTransactionsModel.objects.get(transaction_id=payment_id)
+            if not payment_id:
+                print("[PERFORM ❌] Missing payment_id")
+                return
 
+            # Получаем транзакцию
+            transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
+
+            # Отправка в GetCourse
             response = requests.post("https://fitpackcourse.getcourse.ru/pl/api/payments", data={
                 "user": {"id": transaction.user_id},
                 "amount": transaction.amount,
@@ -122,10 +179,14 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 "key": settings.GETCOURSE_API_KEY
             })
 
+            print("[PERFORM ✅] Sent to GetCourse")
             print("[GETCOURSE RESPONSE]", response.status_code, response.text)
+
+        except MerchantTransactionsModel.DoesNotExist:
+            print("[PERFORM ❌] Transaction not found")
+
         except Exception as e:
-            print("[ERROR SEND TO GETCOURSE]", str(e))
+            print("[PERFORM ❌ ERROR]", str(e))
 
     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
-        print("[CANCEL] Transaction canceled:", transaction.transaction_id)
-
+        print("[CANCEL] ❌ Transaction canceled:", transaction.transaction_id)

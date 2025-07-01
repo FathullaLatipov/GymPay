@@ -49,6 +49,44 @@ import time
 #             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# class GeneratePayLinkAPIView(APIView):
+#     def get(self, request, *args, **kwargs):
+#         try:
+#             user_id = request.GET.get('user_id')
+#             email = request.GET.get('email', '')
+#             phone = request.GET.get('phone', '')
+#             amount = request.GET.get('amount')
+#
+#             if not user_id or not amount:
+#                 return Response({"error": "Missing required parameters"}, status=400)
+#
+#             amount_in_tiyin = int(float(amount) * 100)
+#             payment_id = str(uuid.uuid4())
+#             now_ms = int(time.time() * 1000)
+#
+#             MerchantTransactionsModel.objects.create(
+#                 user_id=user_id,
+#                 transaction_id=payment_id,
+#                 amount=amount_in_tiyin,
+#                 time=now_ms,
+#                 created_at_ms=now_ms,
+#                 email=email,
+#                 phone=phone
+#             )
+#
+#             params = {
+#                 'merchant': settings.PAYME_ID,
+#                 'amount': amount_in_tiyin,
+#                 'account[payment_id]': payment_id,
+#                 'lang': 'ru'
+#             }
+#
+#             payme_link = f'https://checkout.paycom.uz/{urlencode(params)}'
+#             return Response({'payme_link': payme_link})
+#
+#         except Exception as e:
+#             return Response({"error": str(e)}, status=500)
+
 class GeneratePayLinkAPIView(APIView):
     def get(self, request, *args, **kwargs):
         try:
@@ -58,22 +96,29 @@ class GeneratePayLinkAPIView(APIView):
             amount = request.GET.get('amount')
 
             if not user_id or not amount:
-                return Response({"error": "Missing required parameters"}, status=400)
+                return Response(
+                    {"error": "Missing required parameters"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+            # Сумма в тийинах
             amount_in_tiyin = int(float(amount) * 100)
-            payment_id = str(uuid.uuid4())
-            now_ms = int(time.time() * 1000)
 
+            # Генерируем уникальный payment_id
+            payment_id = str(uuid.uuid4())
+
+            # Сохраняем транзакцию в БД
             MerchantTransactionsModel.objects.create(
                 user_id=user_id,
-                transaction_id=payment_id,
                 amount=amount_in_tiyin,
-                time=now_ms,
-                created_at_ms=now_ms,
+                payment_id=payment_id,
                 email=email,
-                phone=phone
+                phone=phone,
+                time=int(time.time() * 1000),
+                created_at_ms=int(time.time() * 1000)
             )
 
+            # Формируем параметры для Payme
             params = {
                 'merchant': settings.PAYME_ID,
                 'amount': amount_in_tiyin,
@@ -81,8 +126,10 @@ class GeneratePayLinkAPIView(APIView):
                 'lang': 'ru'
             }
 
-            payme_link = f'https://checkout.paycom.uz/{urlencode(params)}'
-            return Response({'payme_link': payme_link})
+            query_string = urlencode(params)
+            payme_link = f'https://checkout.paycom.uz/{query_string}'
+
+            return Response({'payme_link': payme_link}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
