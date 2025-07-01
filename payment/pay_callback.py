@@ -229,7 +229,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 "result": {
                     "perform_time": transaction.time,
                     "transaction": transaction.transaction_id,
-                    "state": 1  # выполнено
+                    "state": 1,  # выполнено
                     "payment_id": transaction.phone
                 }
             }
