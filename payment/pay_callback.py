@@ -163,7 +163,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
     def check_perform_transaction(self, params):
         try:
             payment_id = params['account'].get('payment_id')
-            amount = params['amount']
+            amount = int(params['amount'])  # тийины
 
             if not payment_id:
                 return {
@@ -180,7 +180,10 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
-            if int(transaction.amount) != int(amount):
+            # Приводим сумму из базы к тийинам для сравнения
+            expected_amount = int(transaction.amount) * 100  # сумма в тийинах
+
+            if expected_amount != amount:
                 return {
                     "error": {
                         "code": -31001,
@@ -189,7 +192,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                             "ru": "Неверная сумма",
                             "en": "Incorrect amount"
                         },
-                        "data": f"Expected: {transaction.amount}, received: {amount}"
+                        "data": f"Expected: {expected_amount}, received: {amount}"
                     }
                 }
 
@@ -230,7 +233,6 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     "data": str(e)
                 }
             }
-
     def handle_successfully_payment(self, params, result, *args, **kwargs):
         try:
             payment_id = params['account'].get('payment_id')
