@@ -160,24 +160,38 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         except Exception as e:
             print("[CREATE ❌ ERROR]", str(e))
 
-    def check_perform_transaction(self, params, *args, **kwargs):
+    def check_perform_transaction(self, params):
         try:
             payment_id = params['account'].get('payment_id')
             amount = params['amount']
 
             if not payment_id:
-                return self.error_response(
-                    code=-31050,
-                    message="Missing account.payment_id"
-                )
+                return {
+                    "error": {
+                        "code": -31050,
+                        "message": {
+                            "uz": "Hisob topilmadi",
+                            "ru": "Счёт не найден",
+                            "en": "Account not found"
+                        },
+                        "data": "Missing payment_id"
+                    }
+                }
 
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
             if int(transaction.amount) != int(amount):
-                return self.error_response(
-                    code=-31001,
-                    message="Invalid amount. Expected: {}, received: {}".format(transaction.amount, amount)
-                )
+                return {
+                    "error": {
+                        "code": -31001,
+                        "message": {
+                            "uz": "Noto'g'ri summa",
+                            "ru": "Неверная сумма",
+                            "en": "Incorrect amount"
+                        },
+                        "data": f"Expected: {transaction.amount}, received: {amount}"
+                    }
+                }
 
             return {
                 "result": {
@@ -191,17 +205,31 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             }
 
         except MerchantTransactionsModel.DoesNotExist:
-            return self.error_response(
-                code=-31050,
-                message="Account does not exist"
-            )
+            return {
+                "error": {
+                    "code": -31050,
+                    "message": {
+                        "uz": "Hisob topilmadi",
+                        "ru": "Счёт не найден",
+                        "en": "Account not found"
+                    },
+                    "data": f"payment_id={payment_id}"
+                }
+            }
 
         except Exception as e:
             print("[CHECK PERFORM ERROR]", str(e))
-            return self.error_response(
-                code=-32400,
-                message="Internal error"
-            )
+            return {
+                "error": {
+                    "code": -32400,
+                    "message": {
+                        "uz": "Ichki xatolik",
+                        "ru": "Внутренняя ошибка",
+                        "en": "Internal error"
+                    },
+                    "data": str(e)
+                }
+            }
 
     def handle_successfully_payment(self, params, result, *args, **kwargs):
         try:
