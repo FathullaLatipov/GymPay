@@ -160,7 +160,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         except Exception as e:
             print("[CREATE ❌ ERROR]", str(e))
 
-    def handle_check_perform_transaction(self, params, *args, **kwargs):
+    def check_perform_transaction(self, params, *args, **kwargs):
         try:
             payment_id = params['account'].get('payment_id')
             amount = params['amount']
@@ -182,7 +182,6 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             return {
                 "result": {
                     "allow": True,
-                    "test": True,
                     "additional": {
                         "user_id": str(transaction.user_id),
                         "email": transaction.email or "",
