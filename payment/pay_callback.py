@@ -160,7 +160,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         except Exception as e:
             print("[CREATE ❌ ERROR]", str(e))
 
-    def check_perform_transaction(self, params):
+    def check_perform_transaction(self, params, *args, **kwargs):
         try:
             payment_id = params['account'].get('payment_id')
             amount = params['amount']
@@ -176,7 +176,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             if int(transaction.amount) != int(amount):
                 return self.error_response(
                     code=-31001,
-                    message=f"Invalid amount. Expected: {transaction.amount}, received: {amount}"
+                    message="Invalid amount. Expected: {}, received: {}".format(transaction.amount, amount)
                 )
 
             return {
@@ -189,19 +189,6 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     }
                 }
             }
-
-        except MerchantTransactionsModel.DoesNotExist:
-            return self.error_response(
-                code=-31050,
-                message="Account does not exist"
-            )
-
-        except Exception as e:
-            print("[CHECK PERFORM ERROR]", str(e))
-            return self.error_response(
-                code=-32400,
-                message="Internal error"
-            )
 
         except MerchantTransactionsModel.DoesNotExist:
             return self.error_response(
