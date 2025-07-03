@@ -163,7 +163,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
     def check_perform_transaction(self, params):
         try:
             payment_id = params['account'].get('payment_id')
-            amount = int(params['amount'])  # тийины
+            amount = int(params['amount']) * 100  # тийины
 
             if not payment_id:
                 return {
@@ -181,7 +181,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
             # Приводим сумму из базы к тийинам для сравнения
-            expected_amount = int(transaction.amount) * 100  # сумма в тийинах
+            expected_amount = int(transaction.amount)  # сумма в тийинах
 
             if expected_amount != amount:
                 return {
