@@ -298,15 +298,31 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 "https://fitpackcourse.getcourse.ru/pl/api/groups/massAdd",
                 data={
                     "group_id": group_id,
-                    "users[][email]": email,
-                    "users[][phone]": phone,
+                    "users[0][email]": email,
+                    "users[0][phone]": phone,
                     "key": settings.GETCOURSE_API_KEY,
                 }
             )
 
-            if not response_group.ok:
+            response_user = requests.post(
+                "https://fitpackcourse.getcourse.ru/pl/api/users",
+                data={
+                    "user[email]": email,
+                    "user[phone]": phone,
+                    "key": settings.GETCOURSE_API_KEY,
+                }
+            )
+
+            user_result = response_user.json()
+            if not user_result.get("success"):
+                logger.error(f"[USER ❌] Не удалось создать/обновить пользователя: {user_result}")
+            else:
+                logger.info(f"[USER ✅] Пользователь создан/обновлён: {email}")
+
+            response_data = response_group.json()
+            if not response_data.get("success"):
                 logger.error(
-                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_group.status_code} | {response_group.text}"
+                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_data}"
                 )
             else:
                 logger.info(f"[GROUP ✅] Пользователь {email} добавлен в группу ID={group_id}")
