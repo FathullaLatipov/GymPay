@@ -298,8 +298,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 "https://fitpackcourse.getcourse.ru/pl/api/groups/massAdd",
                 data={
                     "group_id": group_id,
-                    "user[email]": email,
-                    "user[phone]": phone,
+                    "users[][email]": email,
+                    "users[][phone]": phone,
                     "key": settings.GETCOURSE_API_KEY,
                 }
             )
