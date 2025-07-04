@@ -143,36 +143,28 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 print("[CREATE] ❌ Missing payment_id")
                 return
 
-            # Получаем сумму и другие данные
             transaction_id = params.get('id')
             time = params.get('time')
-            payme_amount = int(params.get('amount'))
+            payme_amount = int(params.get('amount'))  # от Payme, в тийинах
 
-            # Получаем транзакцию по payment_id
+            # Находим сохранённую транзакцию
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
+            expected_amount = int(transaction.amount)  # тоже в тийинах
 
-            expected_amount = int(transaction.amount)  # в тийинах
-
-            # ⚠️ Некоторые библиотеки Payme принимают сумму в тийинах * 100 (ошибка)
-            # Исправляем: если ожидаемая сумма × 100 == пришедшая, принимаем
             if expected_amount != payme_amount:
-                if expected_amount * 100 == payme_amount:
-                    logging.warning(f"[CREATE ⚠️ FIXED] Приведена сумма {payme_amount} к {expected_amount}")
-                    payme_amount = expected_amount  # принять, несмотря на баг
-                else:
-                    return {
-                        "error": {
-                            "code": -31001,
-                            "message": {
-                                "uz": "Noto'g'ri summa",
-                                "ru": "Неверная сумма",
-                                "en": "Incorrect amount"
-                            },
-                            "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
-                        }
+                return {
+                    "error": {
+                        "code": -31001,
+                        "message": {
+                            "uz": "Noto'g'ri summa",
+                            "ru": "Неверная сумма",
+                            "en": "Incorrect amount"
+                        },
+                        "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
                     }
+                }
 
-            # Обновляем данные
+            # Всё хорошо — сохраняем ID и время
             transaction.transaction_id = transaction_id
             transaction.time = time
             transaction.save()
