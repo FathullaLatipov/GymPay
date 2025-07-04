@@ -127,6 +127,13 @@ GETCOURSE_API_KEY = config('GETCOURSE_API_KEY')
 USE_I18N = True
 
 USE_TZ = True
+
+REST_FRAMEWORK = {
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+    ]
+}
+
 import os
 
 LOGGING = {

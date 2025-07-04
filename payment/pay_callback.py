@@ -141,82 +141,109 @@ logger = logging.getLogger(__name__)
 #         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
 
 class PaymeCallbackView(PaymeWebHookAPIView):
+    def post(self, request, *args, **kwargs):
+        method = request.data.get('method')
+        params = request.data.get('params', {})
+
+        logger.debug(f"📥 Входящие данные от Payme: {json.dumps(request.data, indent=2, ensure_ascii=False)}")
+
+        if method == 'CheckPerformTransaction':
+            return Response(self.check_perform_transaction(params))
+
+        elif method == 'CreateTransaction':
+            return Response(self.handle_create_transaction(params))
+
+        elif method == 'PerformTransaction':
+            return Response(self.handle_successfully_payment(params, result={}))
+
+        elif method == 'CancelTransaction':
+            # Реализуй, если нужно
+            return Response({
+                "result": {
+                    "cancel_time": int(time.time() * 1000),
+                    "state": -1,
+                    "reason": params.get("reason", 0)
+                }
+            })
+
+        else:
+            logger.warning(f"Неизвестный метод от Payme: {method}")
+            return Response({
+                "error": {
+                    "code": -32601,
+                    "message": {
+                        "ru": "Метод не найден"
+                    }
+                }
+            })
 
     def handle_create_transaction(self, params, *args, **kwargs):
         try:
-            payment_id = params['account'].get('payment_id')
+            account = params.get('account', {})
+            payment_id = account.get('payment_id')
             if not payment_id:
-                print("[CREATE] ❌ Missing payment_id")
+                logger.error("[CREATE ❌] payment_id отсутствует")
                 return
 
             transaction_id = params.get('id')
-            time = params.get('time')
-            payme_amount = int(params.get('amount'))  # тийины
+            time_ = params.get('time')
+            payme_amount = int(params.get('amount'))
 
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-
-            # ✅ Просто сравниваем, без умножения
-            expected_amount = int(transaction.amount)  # в тийинах
+            expected_amount = int(transaction.amount)
 
             if expected_amount != payme_amount:
                 return {
                     "error": {
                         "code": -31001,
-                        "message": {
-                            "uz": "Noto'g'ri summa",
-                            "ru": "Неверная сумма",
-                            "en": "Incorrect amount"
-                        },
-                        "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
+                        "message": {"ru": "Неверная сумма"},
+                        "data": f"Ожидалось: {expected_amount}, пришло: {payme_amount}"
                     }
                 }
 
-            # Всё хорошо — обновляем
             transaction.transaction_id = transaction_id
-            transaction.time = time
+            transaction.time = time_
             transaction.save()
 
-            print(f"[CREATE ✅] Transaction updated: {transaction_id}")
+            logger.info(f"[CREATE ✅] Транзакция обновлена: {transaction_id}")
+
+            return {
+                "result": {
+                    "create_time": int(time.time() * 1000),
+                    "transaction": transaction_id,
+                    "state": 1
+                }
+            }
 
         except MerchantTransactionsModel.DoesNotExist:
-            print("[CREATE ❌] Transaction with payment_id not found")
-
+            logger.error("[CREATE ❌] Транзакция не найдена")
         except Exception as e:
-            print("[CREATE ❌ ERROR]", str(e))
+            logger.exception(f"[CREATE ❌ ERROR] {str(e)}")
 
     def check_perform_transaction(self, params):
         try:
-            payment_id = params['account'].get('payment_id')
-            amount = int(params['amount'])  # тийины
+            account = params.get('account', {})
+            payment_id = account.get('payment_id')
+            amount = int(params.get('amount'))
 
             if not payment_id:
                 return {
                     "error": {
                         "code": -31050,
-                        "message": {
-                            "uz": "Hisob topilmadi",
-                            "ru": "Счёт не найден",
-                            "en": "Account not found"
-                        },
-                        "data": "Missing payment_id"
+                        "message": {"ru": "Счёт не найден"},
+                        "data": "Отсутствует payment_id"
                     }
                 }
 
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-
-            # Приводим сумму из базы к тийинам для сравнения
-            expected_amount = int(transaction.amount) * 100  # сумма в тийинах
+            expected_amount = int(transaction.amount) * 100  # stored in soms, Payme sends in tyiyns
 
             if expected_amount != amount:
                 return {
                     "error": {
                         "code": -31001,
-                        "message": {
-                            "uz": "Noto'g'ri summa",
-                            "ru": "Неверная сумма",
-                            "en": "Incorrect amount"
-                        },
-                        "data": f"Expected: {expected_amount}, received: {amount}"
+                        "message": {"ru": "Неверная сумма"},
+                        "data": f"Ожидалось: {expected_amount}, пришло: {amount}"
                     }
                 }
 
@@ -235,25 +262,16 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             return {
                 "error": {
                     "code": -31050,
-                    "message": {
-                        "uz": "Hisob topilmadi",
-                        "ru": "Счёт не найден",
-                        "en": "Account not found"
-                    },
+                    "message": {"ru": "Счёт не найден"},
                     "data": f"payment_id={payment_id}"
                 }
             }
-
         except Exception as e:
-            print("[CHECK PERFORM ERROR]", str(e))
+            logger.exception(f"[CHECK PERFORM ❌ ERROR] {str(e)}")
             return {
                 "error": {
                     "code": -32400,
-                    "message": {
-                        "uz": "Ichki xatolik",
-                        "ru": "Внутренняя ошибка",
-                        "en": "Internal error"
-                    },
+                    "message": {"ru": "Внутренняя ошибка"},
                     "data": str(e)
                 }
             }
@@ -262,31 +280,27 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         try:
             logger.debug(f"▶️ handle_successfully_payment called with params={params}")
 
-            # 🛡️ Безопасно получаем payment_id
-            account_data = params.get('account', {})
-            if not isinstance(account_data, dict):
-                logger.error(f"[PERFORM ❌] account не является словарём: {account_data}")
+            account = params.get('account', {})
+            if not isinstance(account, dict):
+                logger.error(f"[PERFORM ❌] account не является словарём: {account}")
                 return
 
-            payment_id = account_data.get('payment_id')
+            payment_id = account.get('payment_id')
             if not payment_id:
                 logger.error("[PERFORM ❌] payment_id отсутствует в params['account']")
                 return
 
-            # 📦 Получаем транзакцию
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-
-            # 💰 Определяем offer_code по сумме (в тийинах)
             amount = int(transaction.amount)
+
             if amount == 2000:
-                offer_code = "3941295"  # тестовый или льготный
+                offer_code = "3941295"
             elif amount == 1999000:
                 offer_code = "3941675"
             else:
-                logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
+                logger.warning(f"[PERFORM ⚠️] Неизвестная сумма: {amount}")
                 return
 
-            # 📤 Отправляем запрос в GetCourse
             response = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
@@ -300,12 +314,10 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             )
 
-            # ✅ Проверка ответа от GetCourse
             if response.status_code != 200:
-                logger.error(f"[PERFORM ❌] Ошибка от GetCourse: {response.status_code} | {response.text}")
+                logger.error(f"[PERFORM ❌] GetCourse ответ: {response.status_code} | {response.text}")
                 return
 
-            # 💾 Сохраняем успешное выполнение
             transaction.perform_time = int(time.time() * 1000)
             transaction.state = 1
             transaction.save()
@@ -323,12 +335,11 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
         except MerchantTransactionsModel.DoesNotExist:
             logger.error(f"[PERFORM ❌] Транзакция не найдена: payment_id={payment_id}")
-
         except Exception as e:
-            logger.exception(f"[PERFORM ❌ ERROR] Неожиданная ошибка: {str(e)}")
+            logger.exception(f"[PERFORM ❌ ERROR] {str(e)}")
 
     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
-        print("[CANCEL] ❌ Transaction canceled:", transaction.transaction_id)
+        logger.warning(f"[CANCEL ❌] Отмена транзакции: {transaction.transaction_id}")
 
 
 @method_decorator(csrf_exempt, name='dispatch')
