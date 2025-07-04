@@ -275,8 +275,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             # 🔐 Определяем offer_code и группу
             amount = int(transaction.amount)  # в тийинах
-            if amount == 1200:
-                offer_code = "fitpack_course_standart"
+            if amount == 1000:
+                offer_code = "fitpack_course_test"
                 group_id = 4312537
             elif amount == 1999000:
                 offer_code = "fitpack_course_plus"
