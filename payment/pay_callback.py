@@ -321,12 +321,15 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             response_group = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/groups/massAdd",
                 data={
+                    "action": "massAdd",
                     "group_id": group_id,
                     "users[0][email]": email,
                     "users[0][phone]": phone,
                     "key": settings.GETCOURSE_API_KEY,
                 }
             )
+            logger.debug(
+                f"[GROUP] URL: {response_group.url} | Status: {response_group.status_code} | Raw: {response_group.text}")
 
             try:
                 response_data = response_group.json()
