@@ -163,7 +163,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
     def check_perform_transaction(self, params):
         try:
             payment_id = params['account'].get('payment_id')
-            amount = int(params['amount']) * 100  # тийины
+            amount = int(params['amount'])  # тийины
 
             if not payment_id:
                 return {
