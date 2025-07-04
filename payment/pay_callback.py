@@ -295,11 +295,11 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             # 📤 Добавляем пользователя в группу
             response_group = requests.post(
-                "https://fitpackcourse.getcourse.ru/pl/api/users",
+                "https://fitpackcourse.getcourse.ru/pl/api/groups/massAdd",
                 data={
+                    "group_id": group_id,
                     "user[email]": email,
                     "user[phone]": phone,
-                    "User[groupIds][]": group_id,
                     "key": settings.GETCOURSE_API_KEY,
                 }
             )
