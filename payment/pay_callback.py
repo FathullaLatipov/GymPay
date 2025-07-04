@@ -145,10 +145,12 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             transaction_id = params.get('id')
             time = params.get('time')
-            payme_amount = int(params.get('amount'))  # <- обязательно в int
+            payme_amount = int(params.get('amount'))  # тийины
 
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-            expected_amount = int(transaction.amount) // 100  # из базы (в тийинах)
+
+            # ✅ Просто сравниваем, без умножения
+            expected_amount = int(transaction.amount)  # в тийинах
 
             if expected_amount != payme_amount:
                 return {
@@ -159,10 +161,11 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                             "ru": "Неверная сумма",
                             "en": "Incorrect amount"
                         },
-                        "data": f"Expected: {expected_amount}, received: {payme_amount}"
+                        "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
                     }
                 }
 
+            # Всё хорошо — обновляем
             transaction.transaction_id = transaction_id
             transaction.time = time
             transaction.save()
