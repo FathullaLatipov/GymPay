@@ -293,6 +293,30 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             email = merchant_transaction.email
             phone = merchant_transaction.phone
 
+            # 👤 Создаём или обновляем пользователя
+            response_user = requests.post(
+                "https://fitpackcourse.getcourse.ru/pl/api/users",
+                data={
+                    "action": "add",
+                    "user[email]": email,
+                    "user[phone]": phone,
+                    "key": settings.GETCOURSE_API_KEY,
+                }
+            )
+
+            try:
+                user_result = response_user.json()
+            except Exception as e:
+                logger.error(
+                    f"[USER ❌] Не удалось декодировать ответ от GetCourse (users): {str(e)} | raw={response_user.text}")
+                return
+
+            if not user_result.get("success"):
+                logger.error(f"[USER ❌] Не удалось создать/обновить пользователя: {user_result}")
+                return
+            else:
+                logger.info(f"[USER ✅] Пользователь создан/обновлён: {email}")
+
             # 📤 Добавляем пользователя в группу
             response_group = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/groups/massAdd",
@@ -304,26 +328,16 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             )
 
-            response_user = requests.post(
-                "https://fitpackcourse.getcourse.ru/pl/api/users",
-                data={
-                    "user[email]": email,
-                    "user[phone]": phone,
-                    "key": settings.GETCOURSE_API_KEY,
-                }
-            )
-
-            user_result = response_user.json()
-            if not user_result.get("success"):
-                logger.error(f"[USER ❌] Не удалось создать/обновить пользователя: {user_result}")
-            else:
-                logger.info(f"[USER ✅] Пользователь создан/обновлён: {email}")
-
-            response_data = response_group.json()
-            if not response_data.get("success"):
+            try:
+                response_data = response_group.json()
+            except Exception as e:
                 logger.error(
-                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_data}"
-                )
+                    f"[GROUP ❌] Ошибка декодирования ответа от GetCourse: {str(e)} | raw={response_group.text}")
+                return
+
+            if not response_data.get("success"):
+                logger.error(f"[GROUP ❌] Ошибка при добавлении в группу: {response_data}")
+                return
             else:
                 logger.info(f"[GROUP ✅] Пользователь {email} добавлен в группу ID={group_id}")
 
