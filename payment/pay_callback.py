@@ -279,9 +279,9 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             amount = int(merchant_tx.amount)
             if amount == 1200:
-                offer_code = "3941295"
+                offer_code = "fitpack_course_standart"
             elif amount == 1999000:
-                offer_code = "3941675"
+                offer_code = "fitpack_course_plus"
             else:
                 logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
                 return
