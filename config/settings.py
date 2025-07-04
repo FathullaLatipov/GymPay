@@ -132,25 +132,22 @@ USE_TZ = True
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{asctime} {levelname}: {message}',
-            'style': '{',
-        },
-    },
     'handlers': {
         'file': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': '/var/www/GymPay/err.log',  # <--- вот сюда пишется
-            'formatter': 'verbose',
+            'filename': '/var/www/GymPay/err.log',
         },
     },
     'loggers': {
-        '': {  # корневой логгер
+        'django': {
             'handlers': ['file'],
-            'level': 'INFO',
+            'level': 'DEBUG',
             'propagate': True,
+        },
+        '__main__': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
         },
     },
 }

@@ -298,6 +298,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
 @method_decorator(csrf_exempt, name='dispatch')
 class GetCourseWebhookView(APIView):
+    authentication_classes = []
+    permission_classes = []
     def post(self, request, *args, **kwargs):
         try:
             data = request.data
