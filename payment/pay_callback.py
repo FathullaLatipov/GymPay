@@ -257,71 +257,25 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     "data": str(e)
                 }
             }
-    # def handle_successfully_payment(self, params, result, *args, **kwargs):
-    #     try:
-    #         payment_id = params['account'].get('payment_id')
-    #         if not payment_id:
-    #             print("[PERFORM ❌] Missing payment_id")
-    #             return
-    #
-    #         # Получаем транзакцию
-    #         transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-    #
-    #         # Отправка в GetCourse
-    #         response = requests.post("https://fitpackcourse.getcourse.ru/pl/api/payments", data={
-    #             "user": {"email": transaction.email},
-    #             "amount": transaction.amount,
-    #             "system": "Payme",
-    #             "comment": "Оплата через Payme",
-    #             "key": settings.GETCOURSE_API_KEY
-    #         })
-    #
-    #         print("[PERFORM ✅] Sent to GetCourse")
-    #         print("[GETCOURSE RESPONSE]", response.status_code, response.text)
-    #
-    #         return {
-    #             "result": {
-    #                 "perform_time": transaction.time,
-    #                 "transaction": transaction.transaction_id,
-    #                 "state": 1,  # выполнено
-    #                 "payment_id": transaction.phone
-    #             }
-    #         }
-    #
-    #     except MerchantTransactionsModel.DoesNotExist:
-    #         print("[PERFORM ❌] Transaction not found")
-    #
-    #     except Exception as e:
-    #         print("[PERFORM ❌ ERROR]", str(e))
-    #
+
     def handle_successfully_payment(self, params, result, *args, **kwargs):
         try:
             logger.debug(f"▶️ handle_successfully_payment called with params={params}")
 
-            account_data = params.get('account')
-            payment_id = None
-            transaction = None
+            transaction_id = params.get('id')
+            if not transaction_id:
+                logger.error("[PERFORM ❌] Не указан ID транзакции")
+                return
 
-            if isinstance(account_data, dict):
-                payment_id = account_data.get('payment_id')
-
-            if payment_id:
-                transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-            else:
-                transaction_id = params.get('id')
-                if not transaction_id:
-                    logger.error("[PERFORM ❌] Не указан ни payment_id, ни id")
-                    return
-                transaction = MerchantTransactionsModel.objects.get(transaction_id=transaction_id)
+            transaction = MerchantTransactionsModel.objects.get(transaction_id=transaction_id)
 
             amount = int(transaction.amount)
-
             if amount == 1200:
                 offer_code = "3941295"
             elif amount == 1999000:
                 offer_code = "3941675"
             else:
-                logger.warning(f"[PERFORM ⚠️] Неизвестная сумма: {amount}")
+                logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
                 return
 
             response = requests.post(
@@ -338,26 +292,13 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             )
 
             if response.status_code != 200:
-                logger.error(f"[PERFORM ❌] GetCourse ответ: {response.status_code} | {response.text}")
+                logger.error(f"[PERFORM ❌] GetCourse ошибка: {response.status_code} | {response.text}")
                 return
-
-            transaction.perform_time = int(time.time() * 1000)
-            transaction.state = 1
-            transaction.save()
 
             logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {transaction.email}")
 
-            return {
-                "result": {
-                    "perform_time": transaction.perform_time,
-                    "transaction": transaction.transaction_id,
-                    "state": 1,
-                    "payment_id": transaction.phone
-                }
-            }
-
         except MerchantTransactionsModel.DoesNotExist:
-            logger.error(f"[PERFORM ❌] Транзакция не найдена (payment_id={payment_id})")
+            logger.error(f"[PERFORM ❌] Транзакция не найдена: id={transaction_id}")
 
         except Exception as e:
             logger.exception(f"[PERFORM ❌ ERROR] {str(e)}")
