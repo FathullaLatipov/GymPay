@@ -338,7 +338,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             amount = int(transaction.amount)
 
-            if amount == 2000:
+            if amount == 1200:
                 offer_code = "3941295"
             elif amount == 1999000:
                 offer_code = "3941675"
