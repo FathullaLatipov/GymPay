@@ -171,17 +171,14 @@ class GeneratePayLinkAPIView(APIView):
             # merchant ID из настроек
             merchant_id = settings.PAYME_ID
 
-            # ⚠️ Убедись, что account[payment_id] разрешен в настройках Payme
-            params = {
-                'amount': amount_in_tiyin,
-                'account[payment_id]': payment_id,
-                'lang': 'ru'
-            }
+            # Формируем строку параметров в формате key=value через `;`
+            raw_params = f"m={merchant_id};ac.payment_id={payment_id};a={amount_in_tiyin};l=ru"
 
-            query_string = urlencode(params)
+            # Кодируем в base64
+            encoded_params = base64.b64encode(raw_params.encode()).decode()
 
             # Финальная ссылка на оплату
-            payme_link = f'https://checkout.paycom.uz/{merchant_id}?{query_string}'
+            payme_link = f"https://checkout.paycom.uz/{encoded_params}"
 
             return Response({'payme_link': payme_link}, status=status.HTTP_200_OK)
 
