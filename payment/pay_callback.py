@@ -37,6 +37,11 @@ import requests
 from payment.models import MerchantTransactionsModel
 from payme.views import PaymeWebHookAPIView
 from config import settings
+import logging
+import os
+
+LOG_FILE = '/var/www/GymPay/err.log'
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 #
 # class PaymeCallbackView(PaymeWebHookAPIView):
@@ -135,19 +140,20 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         try:
             payment_id = params['account'].get('payment_id')
             if not payment_id:
-                print("[CREATE] ❌ Missing payment_id")
+                logging.error("[CREATE] ❌ Missing payment_id")
                 return
 
-            # Получаем сумму и другие данные
             transaction_id = params.get('id')
             time = params.get('time')
             payme_amount = int(params.get('amount'))
 
-            # Получаем транзакцию по payment_id
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
-            expected_amount = int(transaction.amount)  # уже в тийинах
+            expected_amount = int(transaction.amount)
+
             if expected_amount != payme_amount:
+                error_msg = f"[CREATE] ❌ Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
+                logging.warning(error_msg)
                 return {
                     "error": {
                         "code": -31001,
@@ -156,22 +162,21 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                             "ru": "Неверная сумма",
                             "en": "Incorrect amount"
                         },
-                        "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
+                        "data": error_msg
                     }
                 }
 
-            # Обновляем данные
             transaction.transaction_id = transaction_id
             transaction.time = time
             transaction.save()
 
-            print(f"[CREATE ✅] Transaction updated: {transaction_id}")
+            logging.info(f"[CREATE ✅] Transaction updated: {transaction_id} (amount: {payme_amount})")
 
         except MerchantTransactionsModel.DoesNotExist:
-            print("[CREATE ❌] Transaction with payment_id not found")
+            logging.error(f"[CREATE ❌] Transaction with payment_id {payment_id} not found")
 
         except Exception as e:
-            print("[CREATE ❌ ERROR]", str(e))
+            logging.exception(f"[CREATE ❌ ERROR] {str(e)}")
 
     def check_perform_transaction(self, params):
         try:

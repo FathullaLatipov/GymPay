@@ -8,7 +8,11 @@ from config import settings
 from payment.models import MerchantTransactionsModel
 import uuid
 import time
-import base64
+import base64, logging
+import os
+
+LOG_FILE = '/var/www/GymPay/err2.log'
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 
 # class GeneratePayLinkAPIView(APIView):
@@ -146,18 +150,15 @@ class GeneratePayLinkAPIView(APIView):
             amount = request.GET.get('amount')
 
             if not user_id or not amount:
+                logging.warning(f"[PAYLINK ❌] Missing parameters: user_id={user_id}, amount={amount}")
                 return Response(
                     {"error": "Missing required parameters"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Сумма в тийинах
             amount_in_tiyin = int(float(amount) * 100)
-
-            # Генерируем уникальный payment_id
             payment_id = str(uuid.uuid4())
 
-            # Сохраняем транзакцию в БД
             MerchantTransactionsModel.objects.create(
                 user_id=user_id,
                 amount=amount_in_tiyin,
@@ -168,19 +169,16 @@ class GeneratePayLinkAPIView(APIView):
                 created_at_ms=int(time.time() * 1000)
             )
 
-            # merchant ID из настроек
             merchant_id = settings.PAYME_ID
-
-            # Формируем строку параметров в формате key=value через `;`
             raw_params = f"m={merchant_id};ac.payment_id={payment_id};a={amount_in_tiyin};l=ru"
-
-            # Кодируем в base64
             encoded_params = base64.b64encode(raw_params.encode()).decode()
-
-            # Финальная ссылка на оплату
             payme_link = f"https://checkout.paycom.uz/{encoded_params}"
+
+            logging.info(
+                f"[PAYLINK ✅] Generated link for user_id={user_id}, amount={amount_in_tiyin}, payment_id={payment_id}")
 
             return Response({'payme_link': payme_link}, status=status.HTTP_200_OK)
 
         except Exception as e:
+            logging.exception(f"[PAYLINK ❌ ERROR] {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
