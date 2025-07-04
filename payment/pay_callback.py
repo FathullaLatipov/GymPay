@@ -267,11 +267,14 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             transaction = PaymeTransactions.get_by_transaction_id(transaction_id=params["id"])
             logger.debug(f"[PERFORM] Найдена транзакция Payme: {transaction}")
 
-            # 💰 Найди связанную merchant-транзакцию, если нужно
-            merchant_transaction = MerchantTransactionsModel.objects.filter(
-                transaction_id=transaction.transaction_id).first()
-            if merchant_transaction:
-                logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
+            # 💰 Найди связанную merchant-транзакцию
+            try:
+                merchant_transaction = MerchantTransactionsModel.objects.get(id=transaction.account_id)
+            except MerchantTransactionsModel.DoesNotExist:
+                logger.error(f"[PERFORM ❌] Merchant транзакция не найдена для account_id={transaction.account_id}")
+                return
+
+            logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
 
             # 🔐 Определяем offer_code и группу
             amount = int(transaction.amount)  # в тийинах
@@ -285,12 +288,15 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
                 return
 
+            email = merchant_transaction.email
+            phone = merchant_transaction.phone
+
             # 📤 Добавляем пользователя в группу
             response_group = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/groups/addUser",
                 data={
-                    "user[email]": merchant_transaction.email,
-                    "user[phone]": merchant_transaction.phone,
+                    "user[email]": email,
+                    "user[phone]": phone,
                     "group_id": group_id,
                     "key": settings.GETCOURSE_API_KEY,
                 }
@@ -306,8 +312,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             response_deal = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
-                    "user[email]": merchant_transaction.email,
-                    "user[phone]": merchant_transaction.phone,
+                    "user[email]": email,
+                    "user[phone]": phone,
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -326,14 +332,13 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             transaction.state = 1
             transaction.save()
 
-            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {transaction.email}")
+            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {email}")
 
             return {
                 "result": {
                     "perform_time": transaction.perform_time,
                     "transaction": transaction.transaction_id,
                     "state": 1,
-                    "payment_id": transaction.phone
                 }
             }
 
