@@ -276,12 +276,14 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
 
-            # 🔐 Определяем offer_code и группу
-            amount = int(transaction.amount)  # в тийинах
-            if amount == 100000:
+            # 🔐 Определяем offer_code и группу по сумме в тийинах
+            amount = int(transaction.amount)
+            offer_code, group_id = None, None
+
+            if amount == 100000:  # 1000 сумов
                 offer_code = "fitpack_course_test"
                 group_id = 4312537
-            elif amount == 1999000:
+            elif amount == 1999000:  # 19990 сумов
                 offer_code = "fitpack_course_plus"
                 group_id = 4312876
             else:
@@ -302,11 +304,12 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             )
 
-            if response_group.status_code != 200:
+            if not response_group.ok:
                 logger.error(
-                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_group.status_code} | {response_group.text}")
+                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_group.status_code} | {response_group.text}"
+                )
             else:
-                logger.info(f"[GROUP ✅] Пользователь добавлен в группу ID={group_id}")
+                logger.info(f"[GROUP ✅] Пользователь {email} добавлен в группу ID={group_id}")
 
             # 📦 Отправляем сделку
             response_deal = requests.post(
@@ -322,17 +325,20 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             )
 
-            if response_deal.status_code != 200:
+            if not response_deal.ok:
                 logger.error(
-                    f"[PERFORM ❌] Ошибка от GetCourse (сделка): {response_deal.status_code} | {response_deal.text}")
+                    f"[DEAL ❌] Ошибка от GetCourse (сделка): {response_deal.status_code} | {response_deal.text}"
+                )
                 return
 
-            # 💾 Сохраняем успешное выполнение
+            logger.info(f"[DEAL ✅] Сделка успешно отправлена: {offer_code} → {email}")
+
+            # 💾 Сохраняем успешное выполнение транзакции
             transaction.perform_time = int(time.time() * 1000)
             transaction.state = 1
             transaction.save()
 
-            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {email}")
+            logger.info(f"[PERFORM ✅] Доступ выдан и транзакция завершена успешно для {email}")
 
             return {
                 "result": {
