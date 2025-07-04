@@ -140,48 +140,55 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         try:
             payment_id = params['account'].get('payment_id')
             if not payment_id:
-                logging.error("[CREATE] ❌ Missing payment_id")
+                print("[CREATE] ❌ Missing payment_id")
                 return
 
+            # Получаем сумму и другие данные
             transaction_id = params.get('id')
             time = params.get('time')
             payme_amount = int(params.get('amount'))
 
+            # Получаем транзакцию по payment_id
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
-            expected_amount = int(transaction.amount)
+            expected_amount = int(transaction.amount)  # в тийинах
 
+            # ⚠️ Некоторые библиотеки Payme принимают сумму в тийинах * 100 (ошибка)
+            # Исправляем: если ожидаемая сумма × 100 == пришедшая, принимаем
             if expected_amount != payme_amount:
-                error_msg = f"[CREATE] ❌ Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
-                logging.warning(error_msg)
-                return {
-                    "error": {
-                        "code": -31001,
-                        "message": {
-                            "uz": "Noto'g'ri summa",
-                            "ru": "Неверная сумма",
-                            "en": "Incorrect amount"
-                        },
-                        "data": error_msg
+                if expected_amount * 100 == payme_amount:
+                    logging.warning(f"[CREATE ⚠️ FIXED] Приведена сумма {payme_amount} к {expected_amount}")
+                    payme_amount = expected_amount  # принять, несмотря на баг
+                else:
+                    return {
+                        "error": {
+                            "code": -31001,
+                            "message": {
+                                "uz": "Noto'g'ri summa",
+                                "ru": "Неверная сумма",
+                                "en": "Incorrect amount"
+                            },
+                            "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
+                        }
                     }
-                }
 
+            # Обновляем данные
             transaction.transaction_id = transaction_id
             transaction.time = time
             transaction.save()
 
-            logging.info(f"[CREATE ✅] Transaction updated: {transaction_id} (amount: {payme_amount})")
+            print(f"[CREATE ✅] Transaction updated: {transaction_id}")
 
         except MerchantTransactionsModel.DoesNotExist:
-            logging.error(f"[CREATE ❌] Transaction with payment_id {payment_id} not found")
+            print("[CREATE ❌] Transaction with payment_id not found")
 
         except Exception as e:
-            logging.exception(f"[CREATE ❌ ERROR] {str(e)}")
+            print("[CREATE ❌ ERROR]", str(e))
 
     def check_perform_transaction(self, params):
         try:
             payment_id = params['account'].get('payment_id')
-            amount = int(params['amount'] * 100)  # тийины
+            amount = int(params['amount'])  # тийины
 
             if not payment_id:
                 return {
