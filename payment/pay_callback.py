@@ -264,55 +264,84 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         try:
             logger.debug(f"▶️ handle_successfully_payment called with params={params}")
 
-            transaction_id = params.get('id')
-            if not transaction_id:
-                logger.error("[PERFORM ❌] Не указан ID транзакции")
-                return
+            transaction = PaymeTransactions.get_by_transaction_id(transaction_id=params["id"])
+            logger.debug(f"[PERFORM] Найдена транзакция Payme: {transaction}")
 
-            # Получаем транзакцию из PaymeTransactions
-            payme_tx = PaymeTransactions.objects.get(transaction_id=transaction_id)
-            logger.debug(f"[PERFORM] Найдена транзакция Payme: {payme_tx}")
+            # 💰 Найди связанную merchant-транзакцию, если нужно
+            merchant_transaction = MerchantTransactionsModel.objects.filter(
+                transaction_id=transaction.transaction_id).first()
+            if merchant_transaction:
+                logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
 
-            # Получаем связанную Merchant-транзакцию по account_id
-            merchant_tx = MerchantTransactionsModel.objects.get(id=payme_tx.account_id)
-            logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_tx}")
-
-            amount = int(merchant_tx.amount)
+            # 🔐 Определяем offer_code и группу
+            amount = int(transaction.amount)  # в тийинах
             if amount == 1200:
                 offer_code = "fitpack_course_standart"
+                group_id = 4312537
             elif amount == 1999000:
                 offer_code = "fitpack_course_plus"
+                group_id = 4312876
             else:
                 logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
                 return
 
-            response = requests.post(
+            # 📤 Добавляем пользователя в группу
+            response_group = requests.post(
+                "https://fitpackcourse.getcourse.ru/pl/api/groups/addUser",
+                data={
+                    "user[email]": transaction.email,
+                    "user[phone]": transaction.phone,
+                    "group_id": group_id,
+                    "key": settings.GETCOURSE_API_KEY,
+                }
+            )
+
+            if response_group.status_code != 200:
+                logger.error(
+                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_group.status_code} | {response_group.text}")
+            else:
+                logger.info(f"[GROUP ✅] Пользователь добавлен в группу ID={group_id}")
+
+            # 📦 Отправляем сделку
+            response_deal = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
-                    "user[email]": merchant_tx.email,
-                    "user[phone]": merchant_tx.phone,
+                    "user[email]": transaction.email,
+                    "user[phone]": transaction.phone,
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
-                    "deal[created_at]": merchant_tx.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     "system": "Payme",
                     "key": settings.GETCOURSE_API_KEY
                 }
             )
 
-            if response.status_code != 200:
-                logger.error(f"[PERFORM ❌] GetCourse ошибка: {response.status_code} | {response.text}")
+            if response_deal.status_code != 200:
+                logger.error(
+                    f"[PERFORM ❌] Ошибка от GetCourse (сделка): {response_deal.status_code} | {response_deal.text}")
                 return
 
-            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {merchant_tx.email}")
+            # 💾 Сохраняем успешное выполнение
+            transaction.perform_time = int(time.time() * 1000)
+            transaction.state = 1
+            transaction.save()
+
+            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {transaction.email}")
+
+            return {
+                "result": {
+                    "perform_time": transaction.perform_time,
+                    "transaction": transaction.transaction_id,
+                    "state": 1,
+                    "payment_id": transaction.phone
+                }
+            }
 
         except PaymeTransactions.DoesNotExist:
-            logger.error(f"[PERFORM ❌] Транзакция Payme не найдена: id={transaction_id}")
-
-        except MerchantTransactionsModel.DoesNotExist:
-            logger.error(f"[PERFORM ❌] Merchant транзакция не найдена для account_id={payme_tx.account_id}")
+            logger.error(f"[PERFORM ❌] Транзакция не найдена: id={params['id']}")
 
         except Exception as e:
-            logger.exception(f"[PERFORM ❌ ERROR] {str(e)}")
+            logger.exception(f"[PERFORM ❌ ERROR] Неожиданная ошибка: {str(e)}")
 
     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
         print("[CANCEL] ❌ Transaction canceled:", transaction.transaction_id)
