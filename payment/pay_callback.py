@@ -143,31 +143,18 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 print("[CREATE] ❌ Missing payment_id")
                 return
 
+            # Получаем сумму и другие данные
             transaction_id = params.get('id')
             time = params.get('time')
-            payme_amount = int(params.get('amount'))  # от Payme, в тийинах
+            amount = params.get('amount')
 
-            # Находим сохранённую транзакцию
+            # Получаем транзакцию по payment_id
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-           # expected_amount = int(transaction.amount)   # тоже в тийинах
 
-            #if expected_amount != payme_amount:
-             #   return {
-              #      "error": {
-              #          "code": -31001,
-              #          "message": {
-              #              "uz": "Noto'g'ri summa",
-              #              "ru": "Неверная сумма",
-              #              "en": "Incorrect amount"
-              #          },
-              #          "data": f"Invalid amount. Expected: {expected_amount}, received: {payme_amount}"
-              #      }
-               # }
-
-            # Всё хорошо — сохраняем ID и время
-            transaction.amount = payme_amount
+            # Обновляем данные
             transaction.transaction_id = transaction_id
             transaction.time = time
+            transaction.amount = amount
             transaction.save()
 
             print(f"[CREATE ✅] Transaction updated: {transaction_id}")
