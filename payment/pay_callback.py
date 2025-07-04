@@ -148,7 +148,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             payme_amount = int(params.get('amount'))  # <- обязательно в int
 
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
-            expected_amount = int(transaction.amount)  # из базы (в тийинах)
+            expected_amount = int(transaction.amount) // 100  # из базы (в тийинах)
 
             if expected_amount != payme_amount:
                 return {
