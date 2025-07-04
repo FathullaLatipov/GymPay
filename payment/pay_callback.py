@@ -47,6 +47,7 @@ from django.utils.decorators import method_decorator
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status
+import base64
 import os
 
 logger = logging.getLogger(__name__)
@@ -276,16 +277,17 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
 
-            # 🔐 Определяем offer_code и группу по сумме в тийинах
+            # 🔐 Определяем offer_code и название группы по сумме в тийинах
             amount = int(transaction.amount)
-            offer_code, group_id = None, None
+            offer_code = None
+            group_name = None
 
             if amount == 100000:  # 1000 сумов
                 offer_code = "fitpack_course_test"
-                group_id = 4312537
+                group_name = "FitPackcourse"
             elif amount == 1999000:  # 19990 сумов
                 offer_code = "fitpack_course_plus"
-                group_id = 4312876
+                group_name = "FitPack course +"
             else:
                 logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
                 return
@@ -293,56 +295,40 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             email = merchant_transaction.email
             phone = merchant_transaction.phone
 
-            # 👤 Создаём или обновляем пользователя
+            # 👤 Создание/обновление пользователя и добавление в группу — одним запросом
+            payload = {
+                "user": {
+                    "email": email,
+                    "phone": phone,
+                    "group_name": [group_name]
+                },
+                "system": {
+                    "refresh_if_exists": 1
+                }
+            }
+
+            encoded_params = base64.b64encode(json.dumps(payload).encode()).decode()
             response_user = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/users",
                 data={
                     "action": "add",
-                    "user[email]": email,
-                    "user[phone]": phone,
                     "key": settings.GETCOURSE_API_KEY,
+                    "params": encoded_params
                 }
             )
 
+            logger.debug(f"[USER] Status: {response_user.status_code}, Body: {response_user.text[:200]}")
             try:
                 user_result = response_user.json()
             except Exception as e:
-                logger.error(
-                    f"[USER ❌] Не удалось декодировать ответ от GetCourse (users): {str(e)} | raw={response_user.text}")
+                logger.error(f"[USER ❌] Ошибка декодирования JSON: {e} | raw={response_user.text}")
                 return
 
             if not user_result.get("success"):
                 logger.error(f"[USER ❌] Не удалось создать/обновить пользователя: {user_result}")
                 return
-            else:
-                logger.info(f"[USER ✅] Пользователь создан/обновлён: {email}")
 
-            # 📤 Добавляем пользователя в группу
-            response_group = requests.post(
-                "https://fitpackcourse.getcourse.ru/pl/api/groups/massAdd",
-                data={
-                    "action": "massAdd",
-                    "group_id": group_id,
-                    "users[0][email]": email,
-                    "users[0][phone]": phone,
-                    "key": settings.GETCOURSE_API_KEY,
-                }
-            )
-            logger.debug(
-                f"[GROUP] URL: {response_group.url} | Status: {response_group.status_code} | Raw: {response_group.text}")
-
-            try:
-                response_data = response_group.json()
-            except Exception as e:
-                logger.error(
-                    f"[GROUP ❌] Ошибка декодирования ответа от GetCourse: {str(e)} | raw={response_group.text}")
-                return
-
-            if not response_data.get("success"):
-                logger.error(f"[GROUP ❌] Ошибка при добавлении в группу: {response_data}")
-                return
-            else:
-                logger.info(f"[GROUP ✅] Пользователь {email} добавлен в группу ID={group_id}")
+            logger.info(f"[USER ✅] Пользователь {email} добавлен в группу: {group_name}")
 
             # 📦 Отправляем сделку
             response_deal = requests.post(
