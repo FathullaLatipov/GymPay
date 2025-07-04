@@ -38,10 +38,14 @@ from payment.models import MerchantTransactionsModel
 from payme.views import PaymeWebHookAPIView
 from config import settings
 import logging
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework import status
 import os
 
-LOG_FILE = '/var/www/GymPay/err.log'
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
 
 #
 # class PaymeCallbackView(PaymeWebHookAPIView):
@@ -290,3 +294,36 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
         print("[CANCEL] ❌ Transaction canceled:", transaction.transaction_id)
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+class GetCourseWebhookView(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            data = request.data
+            logger.info(f"[GETCOURSE WEBHOOK] Received: {data}")
+
+            # Пример: можно логировать или сохранить
+            action = data.get("action")
+            user_info = data.get("user", {})
+            payment_info = data.get("payment", {})
+
+            if action == "payment.created":
+                email = user_info.get("email")
+                amount = payment_info.get("amount")
+                status_ = payment_info.get("status")
+                method = payment_info.get("method")
+
+                logger.info(f"[GETCOURSE PAYMENT] Email: {email}, Amount: {amount}, Status: {status_}, Method: {method}")
+
+                # Можешь тут обновить запись в БД по email или телефону
+                # Пример:
+                # transaction = MerchantTransactionsModel.objects.filter(email=email).last()
+                # transaction.paid = True
+                # transaction.save()
+
+            return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("[GETCOURSE WEBHOOK ❌ ERROR]")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

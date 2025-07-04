@@ -11,8 +11,8 @@ import time
 import base64, logging
 import os
 
-LOG_FILE = '/var/www/GymPay/err2.log'
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
+# logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 
 # class GeneratePayLinkAPIView(APIView):
