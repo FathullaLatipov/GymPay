@@ -154,10 +154,10 @@ class GeneratePayLinkAPIView(APIView):
             # Сумма в тийинах
             amount_in_tiyin = int(float(amount) * 100)
 
-            # Уникальный payment_id
+            # Генерируем уникальный payment_id
             payment_id = str(uuid.uuid4())
 
-            # Сохраняем транзакцию
+            # Сохраняем транзакцию в БД
             MerchantTransactionsModel.objects.create(
                 user_id=user_id,
                 amount=amount_in_tiyin,
@@ -168,15 +168,20 @@ class GeneratePayLinkAPIView(APIView):
                 created_at_ms=int(time.time() * 1000)
             )
 
-            # Формируем строку параметров
-            param_str = f"amount={amount_in_tiyin};account[payment_id]={payment_id};lang=ru"
-
-            # Кодируем в Base64 (URL-safe)
-            base64_encoded = base64.urlsafe_b64encode(param_str.encode()).decode()
-
-            # Формируем ссылку
+            # merchant ID из настроек
             merchant_id = settings.PAYME_ID
-            payme_link = f"https://checkout.paycom.uz/{merchant_id}/{base64_encoded}"
+
+            # ⚠️ Убедись, что account[payment_id] разрешен в настройках Payme
+            params = {
+                'amount': amount_in_tiyin,
+                'account[payment_id]': payment_id,
+                'lang': 'ru'
+            }
+
+            query_string = urlencode(params)
+
+            # Финальная ссылка на оплату
+            payme_link = f'https://checkout.paycom.uz/{merchant_id}?{query_string}'
 
             return Response({'payme_link': payme_link}, status=status.HTTP_200_OK)
 
