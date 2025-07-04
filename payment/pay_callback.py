@@ -296,19 +296,31 @@ class PaymeCallbackView(PaymeWebHookAPIView):
         try:
             logger.debug(f"▶️ handle_successfully_payment called with params={params}")
 
+            # ✅ Попробуем сначала получить payment_id из account, если есть
             account = params.get('account', {})
-            if not isinstance(account, dict):
-                logger.error(f"[PERFORM ❌] account не является словарём: {account}")
-                return
+            if isinstance(account, dict):
+                payment_id = account.get('payment_id')
+            else:
+                payment_id = None
 
-            payment_id = account.get('payment_id')
+            # ✅ Если payment_id нет — ищем по ID транзакции
             if not payment_id:
-                logger.error("[PERFORM ❌] payment_id отсутствует в params['account']")
-                return
+                transaction_id = params.get('id')
+                if not transaction_id:
+                    logger.error("[PERFORM ❌] Не указан ни payment_id, ни transaction_id")
+                    return
 
-            transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
+                try:
+                    transaction = MerchantTransactionsModel.objects.get(transaction_id=transaction_id)
+                except MerchantTransactionsModel.DoesNotExist:
+                    logger.error(f"[PERFORM ❌] Транзакция не найдена по ID: {transaction_id}")
+                    return
+            else:
+                transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
+
             amount = int(transaction.amount)
 
+            # 💰 Определяем offer_code
             if amount == 2000:
                 offer_code = "3941295"
             elif amount == 1999000:
@@ -317,6 +329,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 logger.warning(f"[PERFORM ⚠️] Неизвестная сумма: {amount}")
                 return
 
+            # 📤 Отправляем запрос в GetCourse
             response = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
@@ -349,8 +362,6 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             }
 
-        except MerchantTransactionsModel.DoesNotExist:
-            logger.error(f"[PERFORM ❌] Транзакция не найдена: payment_id={payment_id}")
         except Exception as e:
             logger.exception(f"[PERFORM ❌ ERROR] {str(e)}")
 
