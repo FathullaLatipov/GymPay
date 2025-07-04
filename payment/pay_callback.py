@@ -303,24 +303,19 @@ class GetCourseWebhookView(APIView):
             data = request.data
             logger.info(f"[GETCOURSE WEBHOOK] Received: {data}")
 
-            # Пример: можно логировать или сохранить
-            action = data.get("action")
-            user_info = data.get("user", {})
-            payment_info = data.get("payment", {})
+            email = data.get("email")
+            amount = data.get("amount")
+            phone = data.get("phone")
+            user_id = data.get("user_id")
 
-            if action == "payment.created":
-                email = user_info.get("email")
-                amount = payment_info.get("amount")
-                status_ = payment_info.get("status")
-                method = payment_info.get("method")
+            logger.info(f"[GETCOURSE INFO] Email: {email}, Phone: {phone}, Amount: {amount}, UserID: {user_id}")
 
-                logger.info(f"[GETCOURSE PAYMENT] Email: {email}, Amount: {amount}, Status: {status_}, Method: {method}")
-
-                # Можешь тут обновить запись в БД по email или телефону
-                # Пример:
-                # transaction = MerchantTransactionsModel.objects.filter(email=email).last()
-                # transaction.paid = True
-                # transaction.save()
+            # Пример обновления транзакции
+            transaction = MerchantTransactionsModel.objects.filter(email=email, amount=amount).last()
+            if transaction:
+                transaction.status = "paid"
+                transaction.save()
+                logger.info("[GETCOURSE ✅] Transaction marked as paid")
 
             return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
