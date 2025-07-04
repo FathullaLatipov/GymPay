@@ -199,7 +199,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
             # Приводим сумму из базы к тийинам для сравнения
-            expected_amount = int(transaction.amount)  # сумма в тийинах
+            expected_amount = int(transaction.amount) * 100  # сумма в тийинах
 
             if expected_amount != amount:
                 return {
