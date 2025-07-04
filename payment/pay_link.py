@@ -156,7 +156,7 @@ class GeneratePayLinkAPIView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            amount_in_tiyin = int(float(amount) * 100)
+            amount_in_tiyin = int(float(amount))
             payment_id = str(uuid.uuid4())
 
             MerchantTransactionsModel.objects.create(
