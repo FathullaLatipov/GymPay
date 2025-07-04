@@ -141,28 +141,6 @@ logger = logging.getLogger(__name__)
 #         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
 
 class PaymeCallbackView(PaymeWebHookAPIView):
-    def post(self, request, *args, **kwargs):
-        method = request.data.get('method')
-        params = request.data.get('params', {})
-
-        logger.debug(f"📥 Входящие данные от Payme: {json.dumps(request.data, indent=2, ensure_ascii=False)}")
-
-        if method == 'CheckPerformTransaction':
-            return Response(self.check_perform_transaction(params))
-        elif method == 'CreateTransaction':
-            return Response(self.handle_create_transaction(params))
-        elif method == 'PerformTransaction':
-            return Response(self.handle_successfully_payment(params, result={}))
-        else:
-            logger.warning(f"[❓] Неизвестный метод: {method}")
-            return Response({
-                "error": {
-                    "code": -32601,
-                    "message": {
-                        "ru": "Метод не найден"
-                    }
-                }
-            })
 
     def handle_create_transaction(self, params, *args, **kwargs):
         try:
