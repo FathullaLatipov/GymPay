@@ -294,22 +294,22 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             phone = merchant_transaction.phone
 
             # 📤 Добавляем пользователя в группу
-            response_group = requests.post(
-                "https://fitpackcourse.getcourse.ru/pl/api/groups/addUser",
-                data={
-                    "user[email]": email,
-                    "user[phone]": phone,
-                    "group_id": group_id,
-                    "key": settings.GETCOURSE_API_KEY,
-                }
-            )
-
-            if not response_group.ok:
-                logger.error(
-                    f"[GROUP ❌] Ошибка при добавлении в группу: {response_group.status_code} | {response_group.text}"
-                )
-            else:
-                logger.info(f"[GROUP ✅] Пользователь {email} добавлен в группу ID={group_id}")
+            # response_group = requests.post(
+            #     "https://fitpackcourse.getcourse.ru/pl/api/groups/addUser",
+            #     data={
+            #         "user[email]": email,
+            #         "user[phone]": phone,
+            #         "group_id": group_id,
+            #         "key": settings.GETCOURSE_API_KEY,
+            #     }
+            # )
+            #
+            # if not response_group.ok:
+            #     logger.error(
+            #         f"[GROUP ❌] Ошибка при добавлении в группу: {response_group.status_code} | {response_group.text}"
+            #     )
+            # else:
+            #     logger.info(f"[GROUP ✅] Пользователь {email} добавлен в группу ID={group_id}")
 
             # 📦 Отправляем сделку
             response_deal = requests.post(
