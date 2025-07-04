@@ -36,6 +36,8 @@ import requests
 
 
 import requests
+from payme.models import PaymeTransactions
+
 from payment.models import MerchantTransactionsModel
 from payme.views import PaymeWebHookAPIView
 from config import settings
@@ -267,9 +269,15 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 logger.error("[PERFORM ❌] Не указан ID транзакции")
                 return
 
-            transaction = MerchantTransactionsModel.objects.get(transaction_id=transaction_id)
+            # Получаем транзакцию из PaymeTransactions
+            payme_tx = PaymeTransactions.objects.get(transaction_id=transaction_id)
+            logger.debug(f"[PERFORM] Найдена транзакция Payme: {payme_tx}")
 
-            amount = int(transaction.amount)
+            # Получаем связанную Merchant-транзакцию по account_id
+            merchant_tx = MerchantTransactionsModel.objects.get(id=payme_tx.account_id)
+            logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_tx}")
+
+            amount = int(merchant_tx.amount)
             if amount == 1200:
                 offer_code = "3941295"
             elif amount == 1999000:
@@ -281,11 +289,11 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             response = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
-                    "user[email]": transaction.email,
-                    "user[phone]": transaction.phone,
+                    "user[email]": merchant_tx.email,
+                    "user[phone]": merchant_tx.phone,
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
-                    "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                    "deal[created_at]": merchant_tx.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     "system": "Payme",
                     "key": settings.GETCOURSE_API_KEY
                 }
@@ -295,10 +303,13 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 logger.error(f"[PERFORM ❌] GetCourse ошибка: {response.status_code} | {response.text}")
                 return
 
-            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {transaction.email}")
+            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {merchant_tx.email}")
+
+        except PaymeTransactions.DoesNotExist:
+            logger.error(f"[PERFORM ❌] Транзакция Payme не найдена: id={transaction_id}")
 
         except MerchantTransactionsModel.DoesNotExist:
-            logger.error(f"[PERFORM ❌] Транзакция не найдена: id={transaction_id}")
+            logger.error(f"[PERFORM ❌] Merchant транзакция не найдена для account_id={payme_tx.account_id}")
 
         except Exception as e:
             logger.exception(f"[PERFORM ❌ ERROR] {str(e)}")
