@@ -1,6 +1,6 @@
 # paymeuz/call_back.py
 import json
-from datetime import time
+import time
 
 import requests
 # from django.conf import settings
