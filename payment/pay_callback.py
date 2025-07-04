@@ -299,7 +299,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 data={
                     "user[email]": email,
                     "user[phone]": phone,
-                    "group": group_id,
+                    "User[groupIds][]": group_id,
                     "key": settings.GETCOURSE_API_KEY,
                 }
             )
