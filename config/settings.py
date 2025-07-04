@@ -127,29 +127,41 @@ GETCOURSE_API_KEY = config('GETCOURSE_API_KEY')
 USE_I18N = True
 
 USE_TZ = True
-
+import os
 
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+
+    'formatters': {
+        'default': {
+            'format': '[{levelname}] {asctime} {name} | {message}',
+            'style': '{',
+        },
+    },
+
     'handlers': {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': '/var/www/GymPay/err.log',
+            'filename': os.path.join(BASE_DIR, 'logs', 'payment.log'),
+            'formatter': 'default',
         },
     },
+
     'loggers': {
         'django': {
             'handlers': ['file'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': True,
         },
-        '__main__': {
+        # Логгер для твоего app или конкретного файла
+        'payment': {
             'handlers': ['file'],
             'level': 'DEBUG',
+            'propagate': False,
         },
-    },
+    }
 }
 
 # Static files (CSS, JavaScript, Images)
