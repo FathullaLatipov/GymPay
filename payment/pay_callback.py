@@ -1,5 +1,6 @@
 # paymeuz/call_back.py
 import json
+from datetime import time
 
 import requests
 # from django.conf import settings
@@ -304,37 +305,25 @@ class GetCourseWebhookView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            # 🚨 Принудительно распарси JSON тело, если request.data пустой
-            if not request.data:
-                data = json.loads(request.body.decode())
-            else:
-                data = request.data
-
+            data = request.data.dict() if hasattr(request.data, 'dict') else request.data
             logger.info(f"[GETCOURSE WEBHOOK] Received: {data}")
 
             action = data.get("action")
-            user_info = data.get("user", {})
-            payment_info = data.get("payment", {})
+            email = data.get("user[email]") or data.get("email")
+            amount = data.get("payment[amount]") or data.get("amount")
+            status_ = data.get("payment[status]") or data.get("status")
+            method = data.get("payment[method]") or data.get("method")
 
-            if action == "payment.created":
-                email = user_info.get("email")
-                amount = payment_info.get("amount")
-                status_ = payment_info.get("status")
-                method = payment_info.get("method")
+            logger.info(f"[GETCOURSE INFO] Email: {email}, Amount: {amount}, Status: {status_}, Method: {method}")
 
-                logger.info(f"[GETCOURSE INFO] Email: {email}, Amount: {amount}, Status: {status_}, Method: {method}")
-
-                # Пример обновления
-                if email and amount:
-                    from payment.models import MerchantTransactionsModel
-
-                    transaction = MerchantTransactionsModel.objects.filter(email=email, amount=amount).last()
-                    if transaction:
-                        transaction.state = 1  # Например, выполнено
-                        transaction.save()
-                        logger.info(f"[GETCOURSE ✅] Transaction updated for {email}")
-                    else:
-                        logger.warning(f"[GETCOURSE ⚠️] No transaction found for email={email} and amount={amount}")
+            # Пример: отметка оплаты
+            if action == "payment.created" and email:
+                transaction = MerchantTransactionsModel.objects.filter(email=email).last()
+                if transaction:
+                    transaction.state = 1  # Выполнено
+                    transaction.perform_time = int(time.time() * 1000)
+                    transaction.save()
+                    logger.info(f"[GETCOURSE ✅] Transaction marked as paid: {transaction.id}")
 
             return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
