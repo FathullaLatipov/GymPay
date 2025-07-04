@@ -300,24 +300,30 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 class GetCourseWebhookView(APIView):
     authentication_classes = []
     permission_classes = []
+
     def post(self, request, *args, **kwargs):
         try:
-            data = request.data
+            # Пробуем распарсить JSON вручную
+            try:
+                data = json.loads(request.body)
+            except Exception as e:
+                logger.warning(f"[GETCOURSE ❌] Invalid JSON: {request.body}")
+                data = {}
+
             logger.info(f"[GETCOURSE WEBHOOK] Received: {data}")
 
-            email = data.get("email")
-            amount = data.get("amount")
-            phone = data.get("phone")
-            user_id = data.get("user_id")
+            action = data.get("action")
+            user_info = data.get("user", {})
+            payment_info = data.get("payment", {})
+
+            email = user_info.get("email")
+            phone = user_info.get("phone")
+            user_id = user_info.get("id")
+            amount = payment_info.get("amount")
+            status_ = payment_info.get("status")
+            method = payment_info.get("method")
 
             logger.info(f"[GETCOURSE INFO] Email: {email}, Phone: {phone}, Amount: {amount}, UserID: {user_id}")
-
-            # Пример обновления транзакции
-            transaction = MerchantTransactionsModel.objects.filter(email=email, amount=amount).last()
-            if transaction:
-                transaction.status = "paid"
-                transaction.save()
-                logger.info("[GETCOURSE ✅] Transaction marked as paid")
 
             return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
