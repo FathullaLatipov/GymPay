@@ -304,27 +304,22 @@ class GetCourseWebhookView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            # Пробуем распарсить JSON вручную
-            try:
-                data = json.loads(request.body)
-            except Exception as e:
-                logger.warning(f"[GETCOURSE ❌] Invalid JSON: {request.body}")
-                data = {}
-
+            data = request.data
             logger.info(f"[GETCOURSE WEBHOOK] Received: {data}")
 
-            action = data.get("action")
-            user_info = data.get("user", {})
-            payment_info = data.get("payment", {})
-
-            email = user_info.get("email")
-            phone = user_info.get("phone")
-            user_id = user_info.get("id")
-            amount = payment_info.get("amount")
-            status_ = payment_info.get("status")
-            method = payment_info.get("method")
+            email = data.get("email")
+            amount = data.get("amount")
+            phone = data.get("phone")
+            user_id = data.get("user_id")
 
             logger.info(f"[GETCOURSE INFO] Email: {email}, Phone: {phone}, Amount: {amount}, UserID: {user_id}")
+
+            # Пример обновления транзакции
+            transaction = MerchantTransactionsModel.objects.filter(email=email, amount=amount).last()
+            if transaction:
+                transaction.status = "paid"
+                transaction.save()
+                logger.info("[GETCOURSE ✅] Transaction marked as paid")
 
             return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
