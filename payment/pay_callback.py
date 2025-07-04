@@ -304,22 +304,37 @@ class GetCourseWebhookView(APIView):
 
     def post(self, request, *args, **kwargs):
         try:
-            data = request.data
+            # 🚨 Принудительно распарси JSON тело, если request.data пустой
+            if not request.data:
+                data = json.loads(request.body.decode())
+            else:
+                data = request.data
+
             logger.info(f"[GETCOURSE WEBHOOK] Received: {data}")
 
-            email = data.get("email")
-            amount = data.get("amount")
-            phone = data.get("phone")
-            user_id = data.get("user_id")
+            action = data.get("action")
+            user_info = data.get("user", {})
+            payment_info = data.get("payment", {})
 
-            logger.info(f"[GETCOURSE INFO] Email: {email}, Phone: {phone}, Amount: {amount}, UserID: {user_id}")
+            if action == "payment.created":
+                email = user_info.get("email")
+                amount = payment_info.get("amount")
+                status_ = payment_info.get("status")
+                method = payment_info.get("method")
 
-            # Пример обновления транзакции
-            transaction = MerchantTransactionsModel.objects.filter(email=email, amount=amount).last()
-            if transaction:
-                transaction.status = "paid"
-                transaction.save()
-                logger.info("[GETCOURSE ✅] Transaction marked as paid")
+                logger.info(f"[GETCOURSE INFO] Email: {email}, Amount: {amount}, Status: {status_}, Method: {method}")
+
+                # Пример обновления
+                if email and amount:
+                    from payment.models import MerchantTransactionsModel
+
+                    transaction = MerchantTransactionsModel.objects.filter(email=email, amount=amount).last()
+                    if transaction:
+                        transaction.state = 1  # Например, выполнено
+                        transaction.save()
+                        logger.info(f"[GETCOURSE ✅] Transaction updated for {email}")
+                    else:
+                        logger.warning(f"[GETCOURSE ⚠️] No transaction found for email={email} and amount={amount}")
 
             return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
