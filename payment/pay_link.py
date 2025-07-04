@@ -170,12 +170,12 @@ class GeneratePayLinkAPIView(APIView):
             )
 
             merchant_id = settings.PAYME_ID
-            raw_params = f"m={merchant_id};ac.payment_id={payment_id};a={amount_in_tiyin};l=ru"
+            raw_params = f"m={merchant_id};ac.payment_id={payment_id};a={amount};l=ru"
             encoded_params = base64.b64encode(raw_params.encode()).decode()
             payme_link = f"https://checkout.paycom.uz/{encoded_params}"
 
             logging.info(
-                f"[PAYLINK ✅] Generated link for user_id={user_id}, amount={amount_in_tiyin}, payment_id={payment_id}")
+                f"[PAYLINK ✅] Generated link for user_id={user_id}, amount={amount}, payment_id={payment_id}")
 
             return Response({'payme_link': payme_link}, status=status.HTTP_200_OK)
 
