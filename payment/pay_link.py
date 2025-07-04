@@ -152,7 +152,7 @@ class GeneratePayLinkAPIView(APIView):
                 )
 
             # Сумма в тийинах
-            amount_in_tiyin = int(float(amount) * 100)
+            amount_in_tiyin = int(float(amount))
 
             # Генерируем уникальный payment_id
             payment_id = str(uuid.uuid4())
