@@ -260,24 +260,33 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
     def handle_successfully_payment(self, params, result, *args, **kwargs):
         try:
-            payment_id = params['account'].get('payment_id')
-            if not payment_id:
-                logger.error("[PERFORM ❌] Missing payment_id in params")
+            logger.debug(f"▶️ handle_successfully_payment called with params={params}")
+
+            # 🛡️ Безопасно получаем payment_id
+            account_data = params.get('account', {})
+            if not isinstance(account_data, dict):
+                logger.error(f"[PERFORM ❌] account не является словарём: {account_data}")
                 return
 
+            payment_id = account_data.get('payment_id')
+            if not payment_id:
+                logger.error("[PERFORM ❌] payment_id отсутствует в params['account']")
+                return
+
+            # 📦 Получаем транзакцию
             transaction = MerchantTransactionsModel.objects.get(payment_id=payment_id)
 
-            # 🔍 Определяем offer_code по сумме (в тийинах)
+            # 💰 Определяем offer_code по сумме (в тийинах)
             amount = int(transaction.amount)
             if amount == 2000:
-                offer_code = "3941295"
+                offer_code = "3941295"  # тестовый или льготный
             elif amount == 1999000:
                 offer_code = "3941675"
             else:
-                logger.warning(f"[PERFORM ⚠️] Unknown amount received: {amount}")
+                logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
                 return
 
-            # 📡 Отправляем запрос в GetCourse
+            # 📤 Отправляем запрос в GetCourse
             response = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
@@ -291,16 +300,17 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             )
 
+            # ✅ Проверка ответа от GetCourse
             if response.status_code != 200:
-                logger.error(f"[PERFORM ❌] GetCourse API Error: {response.status_code} | {response.text}")
+                logger.error(f"[PERFORM ❌] Ошибка от GetCourse: {response.status_code} | {response.text}")
                 return
 
-            # ✅ Успешная обработка
+            # 💾 Сохраняем успешное выполнение
             transaction.perform_time = int(time.time() * 1000)
             transaction.state = 1
             transaction.save()
 
-            logger.info(f"[PERFORM ✅] Access granted to offer {offer_code} for {transaction.email}")
+            logger.info(f"[PERFORM ✅] Доступ выдан: {offer_code} → {transaction.email}")
 
             return {
                 "result": {
@@ -312,10 +322,10 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             }
 
         except MerchantTransactionsModel.DoesNotExist:
-            logger.error(f"[PERFORM ❌] Transaction with payment_id={payment_id} not found")
+            logger.error(f"[PERFORM ❌] Транзакция не найдена: payment_id={payment_id}")
 
         except Exception as e:
-            logger.exception(f"[PERFORM ❌ ERROR] Unexpected error occurred: {str(e)}")
+            logger.exception(f"[PERFORM ❌ ERROR] Неожиданная ошибка: {str(e)}")
 
     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
         print("[CANCEL] ❌ Transaction canceled:", transaction.transaction_id)
