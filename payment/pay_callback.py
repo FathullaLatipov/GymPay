@@ -289,8 +289,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             response_group = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/groups/addUser",
                 data={
-                    "user[email]": transaction.email,
-                    "user[phone]": transaction.phone,
+                    "user[email]": merchant_transaction.email,
+                    "user[phone]": merchant_transaction.phone,
                     "group_id": group_id,
                     "key": settings.GETCOURSE_API_KEY,
                 }
@@ -306,8 +306,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             response_deal = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
-                    "user[email]": transaction.email,
-                    "user[phone]": transaction.phone,
+                    "user[email]": merchant_transaction.email,
+                    "user[phone]": merchant_transaction.phone,
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
