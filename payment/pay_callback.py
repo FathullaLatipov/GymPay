@@ -142,6 +142,16 @@ logger = logging.getLogger(__name__)
 #
 #     def handle_cancel_transaction(self, params, transaction, *args, **kwargs):
 #         print("[CANCEL] Transaction canceled:", transaction.transaction_id)
+def normalize_phone(phone):
+    phone = phone.strip().replace(" ", "")
+    if phone.startswith("+998") and len(phone) == 13:
+        return phone
+    if phone.startswith("998") and len(phone) == 12:
+        return f"+{phone}"
+    if phone.startswith("9") and len(phone) == 9:
+        return f"+998{phone}"
+    return None
+
 
 class PaymeCallbackView(PaymeWebHookAPIView):
 
@@ -268,7 +278,6 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             transaction = PaymeTransactions.get_by_transaction_id(transaction_id=params["id"])
             logger.debug(f"[PERFORM] Найдена транзакция Payme: {transaction}")
 
-            # 💰 Найди связанную merchant-транзакцию
             try:
                 merchant_transaction = MerchantTransactionsModel.objects.get(id=transaction.account_id)
             except MerchantTransactionsModel.DoesNotExist:
@@ -277,15 +286,14 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
 
-            # 🔐 Определяем offer_code и название группы по сумме в тийинах
             amount = int(transaction.amount)
             offer_code = None
             group_name = None
 
-            if amount == 100000:  # 1000 сумов
+            if amount == 100000:
                 offer_code = "fitpack_course_test"
                 group_name = "FitPackcourse"
-            elif amount == 1999000:  # 19990 сумов
+            elif amount == 1999000:
                 offer_code = "fitpack_course_plus"
                 group_name = "FitPack course +"
             else:
@@ -293,21 +301,29 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 return
 
             email = merchant_transaction.email
-            phone = merchant_transaction.phone
+            raw_phone = merchant_transaction.phone or ""
+            phone = normalize_phone(raw_phone)
 
-            # 👤 Создание/обновление пользователя и добавление в группу — одним запросом
+            if raw_phone and not phone:
+                logger.warning(f"[PHONE ⚠️] Невалидный телефон: {raw_phone} — не будет включён в запрос")
+
+            # 📦 Формируем payload
+            user_section = {
+                "email": email,
+                "group_name": [group_name]
+            }
+            if phone:
+                user_section["phone"] = phone
+
             payload = {
-                "user": {
-                    "email": email,
-                    "phone": phone,
-                    "group_name": [group_name]
-                },
+                "user": user_section,
                 "system": {
                     "refresh_if_exists": 1
                 }
             }
 
             encoded_params = base64.b64encode(json.dumps(payload).encode()).decode()
+
             response_user = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/users",
                 data={
@@ -317,7 +333,8 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             )
 
-            logger.debug(f"[USER] Status: {response_user.status_code}, Body: {response_user.text[:200]}")
+            logger.debug(f"[USER] Status: {response_user.status_code}, Body: {response_user.text[:300]}")
+
             try:
                 user_result = response_user.json()
             except Exception as e:
@@ -325,17 +342,17 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 return
 
             if not user_result.get("success"):
-                logger.error(f"[USER ❌] Не удалось создать/обновить пользователя: {user_result}")
+                logger.error(f"[USER ❌] Ошибка при добавлении пользователя: {user_result}")
                 return
 
             logger.info(f"[USER ✅] Пользователь {email} добавлен в группу: {group_name}")
 
-            # 📦 Отправляем сделку
+            # 💰 Отправляем сделку
             response_deal = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
                     "user[email]": email,
-                    "user[phone]": phone,
+                    "user[phone]": phone if phone else "",
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
@@ -346,13 +363,11 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             if not response_deal.ok:
                 logger.error(
-                    f"[DEAL ❌] Ошибка от GetCourse (сделка): {response_deal.status_code} | {response_deal.text}"
-                )
+                    f"[DEAL ❌] Ошибка от GetCourse (сделка): {response_deal.status_code} | {response_deal.text}")
                 return
 
             logger.info(f"[DEAL ✅] Сделка успешно отправлена: {offer_code} → {email}")
 
-            # 💾 Сохраняем успешное выполнение транзакции
             transaction.perform_time = int(time.time() * 1000)
             transaction.state = 1
             transaction.save()
