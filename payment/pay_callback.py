@@ -355,19 +355,53 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     "user[phone]": phone if phone else "",
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
-		    "deal[funnel_id]": "27991",
+                    "deal[funnel_id]": "27991",
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     "system[refresh_if_exists]": 1,
                     "key": settings.GETCOURSE_API_KEY
                 }
             )
 
-            if not response_deal.ok:
-                logger.error(
-                    f"[DEAL ❌] Ошибка от GetCourse (сделка): {response_deal.status_code} | {response_deal.text}")
+            try:
+                deal_response_data = response_deal.json()
+            except Exception as e:
+                logger.error(f"[DEAL ❌] Ошибка при декодировании JSON: {e} | raw={response_deal.text}")
                 return
 
-            logger.info(f"[DEAL ✅] Сделка успешно отправлена: {offer_code} → {email}")
+            if not deal_response_data.get("success"):
+                logger.error(f"[DEAL ❌] Ошибка создания сделки: {deal_response_data}")
+                return
+
+            # ✅ Получаем dealId и сохраняем
+            deal_info = deal_response_data.get("deal")
+            if deal_info:
+                deal_id = deal_info.get("id")
+                merchant_transaction.deal_id = deal_id
+                merchant_transaction.save()
+
+                logger.info(f"[DEAL ✅] Сделка создана: {deal_id} → {email}")
+
+                # 💰 Отправляем подтверждение оплаты (статус "paid")
+                response_payment = requests.post(
+                    "https://fitpackcourse.getcourse.ru/pl/api/deals/payment",
+                    data={
+                        "user_email": email,
+                        "deal_id": deal_id,
+                        "sum": amount,
+                        "status": "paid",
+                        "system": "Payme",
+                        "comment": "Оплата через Payme",
+                        "key": settings.GETCOURSE_API_KEY
+                    }
+                )
+
+                if response_payment.ok:
+                    logger.info(f"[PAYMENT ✅] Статус сделки {deal_id} успешно обновлён как 'paid'")
+                else:
+                    logger.error(
+                        f"[PAYMENT ❌] Ошибка обновления статуса оплаты: {response_payment.status_code} | {response_payment.text}")
+            else:
+                logger.warning(f"[DEAL ⚠️] Ответ от GetCourse не содержит 'deal.id'. Raw: {deal_response_data}")
 
             transaction.perform_time = int(time.time() * 1000)
             transaction.state = 1

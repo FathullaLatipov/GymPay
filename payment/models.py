@@ -13,6 +13,7 @@ class MerchantTransactionsModel(models.Model):
     cancel_time = models.BigIntegerField(null=True, blank=True)
     state = models.IntegerField(default=1)
     reason = models.IntegerField(null=True, blank=True)
+    deal_id = models.CharField(max_length=255, blank=True, null=True)
     created_at_ms = models.BigIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
