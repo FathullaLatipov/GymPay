@@ -355,8 +355,9 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     "user[phone]": phone if phone else "",
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
+		    "deal[funnel_id]": "27991",
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                    "system": "Payme",
+                    "system[refresh_if_exists]": 1,
                     "key": settings.GETCOURSE_API_KEY
                 }
             )
