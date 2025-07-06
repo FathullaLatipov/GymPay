@@ -271,6 +271,159 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 }
             }
 
+    # def handle_successfully_payment(self, params, result, *args, **kwargs):
+    #     try:
+    #         logger.debug(f"▶️ handle_successfully_payment called with params={params}")
+    #
+    #         transaction = PaymeTransactions.get_by_transaction_id(transaction_id=params["id"])
+    #         logger.debug(f"[PERFORM] Найдена транзакция Payme: {transaction}")
+    #
+    #         try:
+    #             merchant_transaction = MerchantTransactionsModel.objects.get(id=transaction.account_id)
+    #         except MerchantTransactionsModel.DoesNotExist:
+    #             logger.error(f"[PERFORM ❌] Merchant транзакция не найдена для account_id={transaction.account_id}")
+    #             return
+    #
+    #         logger.debug(f"[PERFORM] Найдена merchant транзакция: {merchant_transaction}")
+    #
+    #         amount = int(transaction.amount)
+    #         offer_code = None
+    #         group_name = None
+    #
+    #         if amount == 18800000:
+    #             offer_code = "fitpack_course_standart"
+    #             group_name = "FitPackcourse"
+    #         elif amount == 25080000:
+    #             offer_code = "fitpack_course_plus"
+    #             group_name = "FitPack course +"
+    #         else:
+    #             logger.warning(f"[PERFORM ⚠️] Неизвестная сумма платежа: {amount}")
+    #             return
+    #
+    #         email = merchant_transaction.email
+    #         raw_phone = merchant_transaction.phone or ""
+    #         phone = normalize_phone(raw_phone)
+    #
+    #         if raw_phone and not phone:
+    #             logger.warning(f"[PHONE ⚠️] Невалидный телефон: {raw_phone} — не будет включён в запрос")
+    #
+    #         # 📦 Формируем payload
+    #         user_section = {
+    #             "email": email,
+    #             "group_name": [group_name]
+    #         }
+    #         if phone:
+    #             user_section["phone"] = phone
+    #
+    #         payload = {
+    #             "user": user_section,
+    #             "system": {
+    #                 "refresh_if_exists": 1
+    #             }
+    #         }
+    #
+    #         encoded_params = base64.b64encode(json.dumps(payload).encode()).decode()
+    #
+    #         response_user = requests.post(
+    #             "https://fitpackcourse.getcourse.ru/pl/api/users",
+    #             data={
+    #                 "action": "add",
+    #                 "key": settings.GETCOURSE_API_KEY,
+    #                 "params": encoded_params
+    #             }
+    #         )
+    #
+    #         logger.debug(f"[USER] Status: {response_user.status_code}, Body: {response_user.text[:300]}")
+    #
+    #         try:
+    #             user_result = response_user.json()
+    #         except Exception as e:
+    #             logger.error(f"[USER ❌] Ошибка декодирования JSON: {e} | raw={response_user.text}")
+    #             return
+    #
+    #         if not user_result.get("success"):
+    #             logger.error(f"[USER ❌] Ошибка при добавлении пользователя: {user_result}")
+    #             return
+    #
+    #         logger.info(f"[USER ✅] Пользователь {email} добавлен в группу: {group_name}")
+    #
+    #         # 💰 Отправляем сделку
+    #         response_deal = requests.post(
+    #             "https://fitpackcourse.getcourse.ru/pl/api/deals",
+    #             data={
+    #                 "user[email]": email,
+    #                 "user[phone]": phone if phone else "",
+    #                 "deal[status]": "Оплачен",
+    #                 "deal[offer_code]": offer_code,
+    #                 "deal[funnel_id]": "27991",
+	# 	    "deal[funnel_stage_id]": "278431",
+    #                 "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+    #                 "system[refresh_if_exists]": 1,
+    #                 "key": settings.GETCOURSE_API_KEY
+    #             }
+    #         )
+    #
+    #         try:
+    #             deal_response_data = response_deal.json()
+    #         except Exception as e:
+    #             logger.error(f"[DEAL ❌] Ошибка при декодировании JSON: {e} | raw={response_deal.text}")
+    #             return
+    #
+    #         if not deal_response_data.get("success"):
+    #             logger.error(f"[DEAL ❌] Ошибка создания сделки: {deal_response_data}")
+    #             return
+    #
+    #         # ✅ Получаем dealId и сохраняем
+    #         deal_info = deal_response_data.get("deal")
+    #         if deal_info:
+    #             deal_id = deal_info.get("id")
+    #             merchant_transaction.deal_id = deal_id
+    #             merchant_transaction.save()
+    #
+    #             logger.info(f"[DEAL ✅] Сделка создана: {deal_id} → {email}")
+    #
+    #             # 💰 Отправляем подтверждение оплаты (статус "paid")
+    #             response_payment = requests.post(
+    #                 "https://fitpackcourse.getcourse.ru/pl/api/deals/payment",
+    #                 data={
+    #                     "user_email": email,
+    #                     "deal_id": deal_id,
+    #                     "sum": amount,
+    #                     "status": "paid",
+    #                     "system": "Payme",
+    #                     "comment": "Оплата через Payme",
+    #                     "key": settings.GETCOURSE_API_KEY
+    #                 }
+    #             )
+    #
+    #             if response_payment.ok:
+    #                 logger.info(f"[PAYMENT ✅] Статус сделки {deal_id} успешно обновлён как 'paid'")
+    #             else:
+    #                 logger.error(
+    #                     f"[PAYMENT ❌] Ошибка обновления статуса оплаты: {response_payment.status_code} | {response_payment.text}")
+    #         else:
+    #             logger.warning(f"[DEAL ⚠️] Ответ от GetCourse не содержит 'deal.id'. Raw: {deal_response_data}")
+    #
+    #         transaction.perform_time = int(time.time() * 1000)
+    #         transaction.state = 1
+    #         transaction.save()
+    #
+    #         logger.info(f"[PERFORM ✅] Доступ выдан и транзакция завершена успешно для {email}")
+    #
+    #         return {
+    #             "result": {
+    #                 "perform_time": transaction.perform_time,
+    #                 "transaction": transaction.transaction_id,
+    #                 "state": 1,
+    #             }
+    #         }
+    #
+    #     except PaymeTransactions.DoesNotExist:
+    #         logger.error(f"[PERFORM ❌] Транзакция не найдена: id={params['id']}")
+    #
+    #     except Exception as e:
+    #         logger.exception(f"[PERFORM ❌ ERROR] Неожиданная ошибка: {str(e)}")
+
     def handle_successfully_payment(self, params, result, *args, **kwargs):
         try:
             logger.debug(f"▶️ handle_successfully_payment called with params={params}")
@@ -307,7 +460,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             if raw_phone and not phone:
                 logger.warning(f"[PHONE ⚠️] Невалидный телефон: {raw_phone} — не будет включён в запрос")
 
-            # 📦 Формируем payload
+            # 📦 Добавляем пользователя в группу
             user_section = {
                 "email": email,
                 "group_name": [group_name]
@@ -347,7 +500,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
 
             logger.info(f"[USER ✅] Пользователь {email} добавлен в группу: {group_name}")
 
-            # 💰 Отправляем сделку
+            # 💰 Создаём сделку с указанием payment_type и payment_status
             response_deal = requests.post(
                 "https://fitpackcourse.getcourse.ru/pl/api/deals",
                 data={
@@ -355,8 +508,10 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     "user[phone]": phone if phone else "",
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
-                    "deal[funnel_id]": "27991",
-		    "deal[funnel_stage_id]": "278431",
+                    "deal[funnel_id]": "27991",  # ID воронки
+                    "deal[funnel_stage_id]": "278431",  # Этап: Оплачен
+                    "deal[payment_type]": "OTHER",  # Тип платежа: Другое
+                    "deal[payment_status]": "accepted",  # Статус: Получен
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     "system[refresh_if_exists]": 1,
                     "key": settings.GETCOURSE_API_KEY
@@ -373,7 +528,6 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 logger.error(f"[DEAL ❌] Ошибка создания сделки: {deal_response_data}")
                 return
 
-            # ✅ Получаем dealId и сохраняем
             deal_info = deal_response_data.get("deal")
             if deal_info:
                 deal_id = deal_info.get("id")
@@ -381,29 +535,10 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                 merchant_transaction.save()
 
                 logger.info(f"[DEAL ✅] Сделка создана: {deal_id} → {email}")
-
-                # 💰 Отправляем подтверждение оплаты (статус "paid")
-                response_payment = requests.post(
-                    "https://fitpackcourse.getcourse.ru/pl/api/deals/payment",
-                    data={
-                        "user_email": email,
-                        "deal_id": deal_id,
-                        "sum": amount,
-                        "status": "paid",
-                        "system": "Payme",
-                        "comment": "Оплата через Payme",
-                        "key": settings.GETCOURSE_API_KEY
-                    }
-                )
-
-                if response_payment.ok:
-                    logger.info(f"[PAYMENT ✅] Статус сделки {deal_id} успешно обновлён как 'paid'")
-                else:
-                    logger.error(
-                        f"[PAYMENT ❌] Ошибка обновления статуса оплаты: {response_payment.status_code} | {response_payment.text}")
             else:
                 logger.warning(f"[DEAL ⚠️] Ответ от GetCourse не содержит 'deal.id'. Raw: {deal_response_data}")
 
+            # ✅ Обновляем Payme транзакцию
             transaction.perform_time = int(time.time() * 1000)
             transaction.state = 1
             transaction.save()
