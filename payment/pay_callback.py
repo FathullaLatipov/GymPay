@@ -290,10 +290,10 @@ class PaymeCallbackView(PaymeWebHookAPIView):
             offer_code = None
             group_name = None
 
-            if amount == 100000:
-                offer_code = "fitpack_course_test"
+            if amount == 18800000:
+                offer_code = "fitpack_course_standart"
                 group_name = "FitPackcourse"
-            elif amount == 1999000:
+            elif amount == 25080000:
                 offer_code = "fitpack_course_plus"
                 group_name = "FitPack course +"
             else:
@@ -356,6 +356,7 @@ class PaymeCallbackView(PaymeWebHookAPIView):
                     "deal[status]": "Оплачен",
                     "deal[offer_code]": offer_code,
                     "deal[funnel_id]": "27991",
+		    "deal[funnel_stage_id]": "278431",
                     "deal[created_at]": transaction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
                     "system[refresh_if_exists]": 1,
                     "key": settings.GETCOURSE_API_KEY
